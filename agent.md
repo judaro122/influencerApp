@@ -9,8 +9,18 @@ Before writing or modifying any code, read these files in full:
 1. `docs/specs/constitution.md` — non-negotiable principles, architecture constraints, security rules, testing standards.
 2. `arq/architecture.md` — derived architecture decisions, layer boundaries, package structure, API contracts, Kafka design, resilience, observability.
 3. `docs/specs/PRD.md` — product requirements, features, success metrics, project structure.
+4. `docs/specs/development-plan.md` — phase-by-phase execution roadmap.
 
 You MUST NOT propose or implement anything that violates the Constitution. If a feature request conflicts with §11 (Out of Scope), reject it and cite the specific section.
+
+### 1.1 Execution Checkpoint & Status Tracking (Mandatory)
+To prevent progress loss from context window expiration or unexpected session terminations, the agent MUST strictly maintain execution state:
+- You MUST create and maintain `docs/specs/execution-state.md`.
+- BEFORE making major code changes, update `execution-state.md` setting the target task as `[/] IN_PROGRESS`.
+- IMMEDIATELY AFTER creating or modifying files for a sub-task, mark that task as `[x] COMPLETED` in `execution-state.md` and log the exact created/modified file paths.
+- If you run out of tokens or stop unexpectedly, `execution-state.md` MUST reflect the exact last modified file and the exact next step needed to resume.
+
+---
 
 ## 2. Architectural Constraints
 
@@ -36,6 +46,8 @@ The upload pipeline is asynchronous by design. No synchronous HTTP wait for YouT
 
 ### 2.5 Secrets Never in Code
 All credentials, API keys, and tokens are injected via environment variables. No hardcoded secrets. No secrets in version control.
+
+---
 
 ## 3. Clean Code & Lombok Rules
 
@@ -66,6 +78,8 @@ Manual getters, setters, equals, hashCode, toString, and constructors are FORBID
 - **Null Safety**: avoid `null`. Use `Optional` for nullable returns. Use `@NonNull`/`@Nullable`.
 - **Exception Handling**: domain-specific exceptions only. No generic `catch (Exception)` without rethrow/wrap.
 
+---
+
 ## 4. Maven Multi-Module Rules
 
 - The project uses Maven as the single build tool. No Gradle or other build tools.
@@ -74,6 +88,8 @@ Manual getters, setters, equals, hashCode, toString, and constructors are FORBID
 - Do NOT add framework dependencies to `domain`.
 - Do NOT add SDK dependencies to `application`.
 - `infrastructure` is the only module that may depend on external SDKs.
+
+---
 
 ## 5. API & Kafka Contracts
 
@@ -91,6 +107,8 @@ Manual getters, setters, equals, hashCode, toString, and constructors are FORBID
 - DLQ topics: `video-received-dlq`, `video-published-dlq` (after 3 retries).
 - If Kafka is unavailable, events MUST be persisted to the outbox (`outbox_events` table).
 
+---
+
 ## 6. Security Rules
 
 - JWT Bearer tokens required on all endpoints except `/api/auth/**` and `/api/health`.
@@ -100,6 +118,8 @@ Manual getters, setters, equals, hashCode, toString, and constructors are FORBID
 - Multipart uploads MUST be validated for file type (`video/*`), size (max 100MB), and filename sanitization.
 - Production requires HTTPS. Local HTTP is permitted only for `localhost`.
 
+---
+
 ## 7. Resilience Rules
 
 - **Retry**: exponential backoff with jitter, initial 1s, max 30s, 3 attempts.
@@ -108,12 +128,16 @@ Manual getters, setters, equals, hashCode, toString, and constructors are FORBID
 - **Storage Fallback**: MinIO unreachable in production returns 503. Local fallback only when `storage.type=local`.
 - **Kafka Fallback**: persist to outbox in production; in-memory buffer acceptable for development only.
 
+---
+
 ## 8. Observability Rules
 
 - All logs use JSON format with `tenantId` and `correlationId`.
 - Correlation ID flows: HTTP request → use case → adapter → Kafka event → consumer.
 - Required metrics: `upload.duration`, `gemini.latency`, `youtube.quota.used`, `kafka.publish.latency`.
 - `GET /api/health` MUST report PostgreSQL, Kafka, MinIO, and YouTube API connectivity.
+
+---
 
 ## 9. Testing Rules
 
@@ -122,6 +146,8 @@ Manual getters, setters, equals, hashCode, toString, and constructors are FORBID
 - **Contract Tests**: REST controllers validated against OpenAPI 3.0 schema.
 - **No External Calls in Unit Tests**: integration tests are the ONLY place real external calls are permitted.
 - Test classes follow the same Clean Code principles. Use `@DisplayName` for readability.
+
+---
 
 ## 10. What Agents MUST NOT Do
 
@@ -139,17 +165,23 @@ Manual getters, setters, equals, hashCode, toString, and constructors are FORBID
 12. Catch generic `Exception` without rethrow or wrapping.
 13. Modify database schema without Flyway/Liquibase migrations.
 14. Commit `.env` files or secrets to version control.
+15. Skip updating `docs/specs/execution-state.md` before or after executing tasks.
+
+---
 
 ## 11. Workflow for Implementing a Feature
 
-1. **Read**: Constitution, Architecture, PRD. Identify the governing rules.
+1. **Check State**: Read `docs/specs/execution-state.md` to identify current phase and pending sub-task.
 2. **Design**: Define ports (interfaces) in `domain/port`. No implementation details.
 3. **Implement Use Case**: in `application/service`. Orchestrate ports. Keep it small.
 4. **Implement Adapter**: in `infrastructure/adapter`. Implement the port. Handle external SDK details here.
 5. **Wire**: in `infrastructure/config`. Beans, security, Kafka, storage.
 6. **Test**: unit test the use case, integration test the adapter, contract test the controller.
 7. **Verify**: run `mvn clean verify`. Ensure no dependency violations in `domain`.
-8. **Document**: update `arq/architecture.md` if new adapters or ports are introduced.
+8. **Update Log**: update `docs/specs/execution-state.md` with modified files and mark sub-task completed.
+9. **Document**: update `arq/architecture.md` if new adapters or ports are introduced.
+
+---
 
 ## 12. Amendment Process
 
@@ -161,9 +193,12 @@ If a requested change violates the Constitution, do not implement it. Instead:
    - Version bump with changelog entry.
 3. Only after amendment approval, proceed with implementation.
 
+---
+
 ## 13. Code Review Checklist
 
 Before submitting any code, verify:
+- [ ] `docs/specs/execution-state.md` has been updated with the current status and file manifest.
 - [ ] `domain` module has zero Spring/JPA/Kafka/SDK dependencies.
 - [ ] All new classes use Lombok annotations instead of manual boilerplate.
 - [ ] TenantId is present in every repository call, storage path, and Kafka event.

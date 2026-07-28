@@ -1,0 +1,10 @@
+Please read `docs/specs/development-plan.md` carefully alongside 
+`docs/specs/constitution.md` and `docs/specs/infra-spec.md`. 
+
+We are ready to start execution. Execute PHASE 0 only:
+1. Create the multi-module Maven project structure (domain, application, infrastructure, boot).
+2. Create the root `pom.xml` with dependencies and submodules configured.
+3. Create `docker-compose.yml` with PostgreSQL 16, Kafka, and Kafka UI.
+4. Create the Flyway SQL migration scripts V1 through V4 under `infrastructure`.
+
+Remember the strict protocol: DO NOT advance to Phase 1 until Phase 0 is verified. Stop after Phase 0 and provide the verification steps.
