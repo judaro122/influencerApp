@@ -66,6 +66,9 @@ A backend service that acts as an intelligent video publishing pipeline:
 - **Pattern**: Hexagonal Architecture (Ports & Adapters)
 - **Language**: Java 17+
 - **Framework**: Spring Boot 3.x
+- **Build Tool**: Maven (multi-module structure)
+- **Boilerplate Reduction**: Lombok annotations required (`@Data`, `@Builder`, `@Slf4j`, `@Value`, `@With`, `@RequiredArgsConstructor`). Manual getters/setters/constructors are forbidden.
+- **Code Quality**: Clean Code principles enforced — single responsibility, meaningful names, small functions, no dead code, no commented-out blocks. Cyclomatic complexity must remain low.
 - **Database**: PostgreSQL
 - **Message Broker**: Apache Kafka
 - **Storage**: MinIO (object storage)
@@ -83,6 +86,7 @@ A backend service that acts as an intelligent video publishing pipeline:
 - **Latency**: <5s for API responses (excluding upload/processing time)
 - **File Size Limit**: 100MB per video (configurable)
 - **Security**: OAuth2 tokens encrypted at rest, HTTPS only in production
+- **Code Quality**: Clean Code principles enforced — meaningful names, small classes/methods, no dead code. Lombok used consistently to reduce boilerplate. No manual getters/setters/constructors.
 
 ### 7.4 Integrations
 | Integration | Purpose | Auth Method |
@@ -103,23 +107,51 @@ A backend service that acts as an intelligent video publishing pipeline:
 - **API Latency (p95)**: <500ms for non-upload endpoints
 - **Error Rate**: <1% of requests return 5xx
 - **Kafka Lag**: <10 seconds between VIDEO_RECEIVED and VIDEO_PUBLISHED events
+- **Code Coverage**: 90%+ for domain and application layers
+- **Static Analysis**: No critical SonarQube issues; Lombok usage consistent across codebase
 
 ## 9. Project Structure
 
 ```
 influencerAPP/
-├── plans/
-│   └── architecture-plan.md
-├── src/
-│   └── main/java/com/influencerapp/
-│       ├── domain/
-│       ├── application/
-│       └── infrastructure/
-├── src/test/
+├── pom.xml                          # Parent POM (dependency management)
 ├── docker-compose.yml
 ├── Dockerfile
-├── pom.xml
-└── README.md
+├── README.md
+├── arq/
+│   └── architecture.md
+├── docs/
+│   └── specs/
+│       ├── constitution.md
+│       └── PRD.md
+├── domain/                          # Maven module: pure domain, no framework deps
+│   ├── pom.xml
+│   └── src/main/java/com/influencerapp/domain/
+│       ├── model/
+│       ├── port/
+│       │   ├── inbound/
+│       │   └── outbound/
+│       └── exception/
+├── application/                     # Maven module: use cases, orchestration
+│   ├── pom.xml
+│   └── src/main/java/com/influencerapp/application/
+│       ├── service/
+│       ├── event/
+│       └── dto/
+└── infrastructure/                  # Maven module: adapters, config, repos
+    ├── pom.xml
+    └── src/main/java/com/influencerapp/infrastructure/
+        ├── adapter/
+        │   ├── http/
+        │   ├── storage/
+        │   ├── ai/
+        │   ├── youtube/
+        │   ├── kafka/
+        │   ├── security/
+        │   └── monitoring/
+        ├── config/
+        ├── repository/
+        └── entity/
 ```
 
 ## 10. Implementation Roadmap

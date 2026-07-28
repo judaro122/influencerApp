@@ -14,6 +14,9 @@ This constitution defines the non-negotiable principles, architecture rules, and
 4. **Eventual Consistency via Events** — the upload pipeline is asynchronous by design. Synchronous waiting for YouTube publish is forbidden. All state transitions are communicated via Kafka events.
 5. **Secrets Never in Code** — all credentials, API keys, and tokens are injected via environment variables or external secret stores. No hardcoded secrets. No secrets in version control.
 6. **Free-Tier Constraints Are First-Class Requirements** — Gemini rate limits and YouTube quota limits are architectural constraints, not operational afterthoughts. Circuit breakers and fallbacks are mandatory.
+7. **Clean Code & Maintainability** — code MUST be readable, testable, and SOLID-compliant. Classes and methods follow single responsibility. Names reveal intent. Cyclomatic complexity MUST remain low. No dead code, no commented-out blocks.
+8. **Lombok for Boilerplate Elimination** — Lombok annotations (`@Data`, `@Builder`, `@Slf4j`, `@Value`, `@With`, `@RequiredArgsConstructor`) are the standard for reducing verbosity in domain, application, and infrastructure layers. Manual getters/setters/constructors are forbidden except where Lombok cannot express the invariant.
+9. **Maven as Canonical Build** — the project uses Maven as the single build and dependency management tool. Multi-module structure is required. Versions are managed via parent POM. No Gradle or other build tools permitted.
 
 ## 3. Architecture Constraints
 
@@ -33,6 +36,16 @@ This constitution defines the non-negotiable principles, architecture rules, and
 - PostgreSQL is the only permitted persistence store.
 - JPA entities MUST map 1:1 with domain models. No anemic domain models.
 - OAuth2 tokens MUST be stored encrypted at rest using JCE.
+
+### 3.4 Coding Standards
+- **Lombok First**: All DTOs, entities, and value objects MUST use Lombok annotations to eliminate boilerplate. Allowed annotations: `@Data`, `@Builder`, `@Slf4j`, `@Value`, `@With`, `@RequiredArgsConstructor`, `@NoArgsConstructor(force = true)`. Manual getters, setters, equals, hashCode, toString, and constructors are forbidden unless Lombok cannot express the invariant (e.g., custom validation in constructor).
+- **Naming**: Class names are nouns (`UploadVideoUseCase`). Method names are verbs (`execute`, `publish`, `validate`). Boolean methods prefix with `is`/`has`/`can`. Constants are `UPPER_SNAKE_CASE`.
+- **Immutability**: Domain models and value objects MUST be immutable. Use `@Value` (Lombok) or `final` fields with `@RequiredArgsConstructor`.
+- **No God Classes**: A class MUST NOT exceed 300 lines. A method MUST NOT exceed 30 lines. If exceeded, refactor immediately.
+- **No Static State**: Static mutable fields are forbidden. Constants are permitted.
+- **Exception Handling**: Use domain-specific exceptions (`DomainException`, `TenantIsolationViolationException`). Never catch generic `Exception` without rethrow or wrapping.
+- **Logging**: Use `@Slf4j` (Lombok) for all classes requiring logging. No `System.out.println` or `System.err.println`.
+- **Null Safety**: Avoid `null` references. Use `Optional` for nullable return values. Use `@NonNull` / `@Nullable` annotations where applicable.
 
 ## 4. Security & Compliance Rules
 
@@ -67,10 +80,12 @@ This constitution defines the non-negotiable principles, architecture rules, and
 
 ## 8. Testing Standards
 
-1. **Unit Tests**: All use cases (`*UseCase.java`) MUST have unit tests with mocked ports. Target coverage: 90%+ for domain and application layers.
-2. **Integration Tests**: All adapters MUST have integration tests using Testcontainers (PostgreSQL, Kafka, MinIO).
-3. **Contract Tests**: REST controllers MUST have contract tests validating request/response schemas.
-4. **No External Calls in Unit Tests**: All external SDKs (Gemini, YouTube, Kafka) MUST be mocked. Integration tests are the ONLY place real external calls are permitted.
+1. **Clean Code in Tests**: Test classes follow the same Clean Code principles as production code. Test method names describe the scenario and expected outcome. No test logic duplication. Use `@DisplayName` for readability.
+2. **Lombok in Tests**: Lombok annotations are permitted in test classes (`@Slf4j`, `@Data` for DTOs, `@RequiredArgsConstructor` for constructor injection in tests).
+3. **Unit Tests**: All use cases (`*UseCase.java`) MUST have unit tests with mocked ports. Target coverage: 90%+ for domain and application layers.
+4. **Integration Tests**: All adapters MUST have integration tests using Testcontainers (PostgreSQL, Kafka, MinIO).
+5. **Contract Tests**: REST controllers MUST have contract tests validating request/response schemas.
+6. **No External Calls in Unit Tests**: All external SDKs (Gemini, YouTube, Kafka) MUST be mocked. Integration tests are the ONLY place real external calls are permitted.
 
 ## 9. Observability Requirements
 
