@@ -1,0 +1,181 @@
+services:
+  # Descomenta este bloque cuando tengas listo el Dockerfile y pom.xml
+  # app:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: influencerapp
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     SPRING_PROFILES_ACTIVE: docker
+  #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/influencerapp
+  #     SPRING_DATASOURCE_USERNAME: influencerapp
+  #     SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+  #     SPRING_FLYWAY_ENABLED: "true"
+  #     SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #     SPRING_KAFKA_CONSUMER_GROUP_ID: influencerapp-group
+  #     SPRING_MINIO_ENDPOINT: http://minio:9000
+  #     SPRING_MINIO_ACCESS_KEY: minioadmin
+  #     SPRING_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  #     SPRING_MINIO_BUCKET: video-bucket
+  #     ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+  #     JWT_SECRET: ${JWT_SECRET}
+  #     GEMINI_API_KEY: ${GEMINI_API_KEY}
+  #     SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 100MB
+  #     SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 100MB
+  #     STORAGE_TYPE: minio
+  #     LOGGING_LEVEL_ROOT: INFO
+  #     MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,metrics,prometheus
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 60s
+  #   restart: unless-stopped
+  #   networks:
+  #     - influencerapp-network
+  #   volumes:
+  #     - app-logs:/var/log/influencerapp
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: influencerapp-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: influencerapp
+      POSTGRES_USER: influencerapp
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U influencerapp -d influencerapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - influencerapp-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: influencerapp-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "zookeeper-shell", "localhost:2181", "ls", "/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - influencerapp-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: influencerapp-kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "cub", "kafka-ready", "-b", "localhost:9092", "1", "20"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - influencerapp-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: influencerapp-kafka-ui
+    ports:
+      - "8085:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local-dev
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - influencerapp-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: influencerapp-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - influencerapp-network
+
+  flyway:
+    image: flyway/flyway:10
+    container_name: influencerapp-flyway
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/influencerapp
+      FLYWAY_USER: influencerapp
+      FLYWAY_PASSWORD: ${DB_PASSWORD}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_CLEAN_DISABLED: "true"
+    volumes:
+      - ./src/main/resources/db/migration:/flyway/sql
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - influencerapp-network
+    entrypoint: ["flyway", "migrate"]
+
+volumes:
+  postgres-data:
+    driver: local
+  minio-data:
+    driver: local
+  app-logs:
+    driver: local
+
+networks:
+  influencerapp-network:
+    driver: bridge
