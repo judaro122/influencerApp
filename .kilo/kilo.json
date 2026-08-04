@@ -1,0 +1,16 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "mcp": {
+    "postgres-mcp-pro": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "postgres-mcp==0.3.0",
+        "--access-mode=restricted"
+      ],
+      "environment": {
+        "DATABASE_URI": "PostgreSQL://agent_readonly:read_only@192.168.100.10:5432/influencerapp"
+      }
+    }
+  }
+}
