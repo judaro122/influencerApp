@@ -10,24 +10,27 @@ Backend service that automates YouTube content publishing. Users upload videos t
 - **AI Metadata**: Gemini-powered title and description generation with circuit breaker and placeholder fallback.
 - **Event-Driven**: asynchronous upload pipeline via Kafka with DLQ, outbox pattern, and consumer idempotency.
 - **Resilience**: Resilience4j circuit breakers, exponential backoff with jitter, graceful degradation.
-- **Security**: JWT authentication, OAuth2 YouTube linking, AES/GCM/NoPadding token encryption.
+- **Security**: OAuth2 YouTube linking, AES/GCM/NoPadding token encryption.
+- **Database Migrations**: Flyway-managed schema evolution (V1–V4).
+- **Observability**: Micrometer + Prometheus metrics, health checks for all dependencies.
+- **Idempotency**: upload requests protected by `Idempotency-Key` header; processed events tracked to prevent duplicates.
 
 ## Tech Stack
 
 | Concern | Technology |
 |---------|-----------|
 | Language | Java 17 |
-| Framework | Spring Boot 3.x |
+| Framework | Spring Boot 3.3.4 |
 | Architecture | Hexagonal (Ports & Adapters) |
 | Build | Maven (multi-module) |
 | Boilerplate | Lombok |
 | Database | PostgreSQL 15+ |
+| Migrations | Flyway |
 | Messaging | Apache Kafka |
 | Storage | MinIO |
 | AI | Google Generative AI (Gemini) |
 | YouTube | YouTube Data API v3 |
 | Resilience | Resilience4j |
-| Auth | Spring Security + JWT |
 | Encryption | JCE (AES/GCM/NoPadding) |
 | Docs | SpringDoc OpenAPI 3.0 |
 | Testing | JUnit 5, Mockito, Testcontainers |
@@ -51,26 +54,23 @@ cd influencerAPP
 mvn clean verify
 ```
 
-### 2. Start infrastructure
+### 2. Start with Docker Compose
 
 ```bash
-docker compose up -d postgres kafka zookeeper minio
+# Build the application image (no cache)
+docker compose build --no-cache app
+
+# Start all services in detached mode
+docker compose up -d
+
+# Follow application logs
+docker compose logs -f app
+
+# Stop and remove containers + volumes
+docker compose down -v
 ```
 
-### 3. Run the application
-
-```bash
-mvn spring-boot:run -pl infrastructure
-```
-
-Or run the packaged jar:
-
-```bash
-mvn clean package -DskipTests
-java -jar infrastructure/target/infrastructure-0.1.0.jar
-```
-
-### 4. Verify
+### 3. Verify
 
 ```bash
 curl http://localhost:8080/api/health
@@ -85,9 +85,8 @@ curl http://localhost:8080/api/health
 | `GEMINI_API_KEY` | Yes | Google Generative AI API key |
 | `YOUTUBE_CLIENT_ID` | Yes | Google OAuth2 client ID |
 | `YOUTUBE_CLIENT_SECRET` | Yes | Google OAuth2 client secret |
-| `DATABASE_URL` | Yes | JDBC URL (e.g. `jdbc:postgresql://localhost:5432/influencerapp`) |
-| `DATABASE_USERNAME` | Yes | Database user |
-| `DATABASE_PASSWORD` | Yes | Database password |
+| `DB_PASSWORD` | Yes | PostgreSQL password |
+| `MINIO_ROOT_PASSWORD` | Yes | MinIO root password |
 | `KAFKA_BOOTSTRAP_SERVERS` | Yes | Kafka broker addresses |
 | `MINIO_ENDPOINT` | Yes | MinIO endpoint (e.g. `localhost:9000`) |
 | `MINIO_ACCESS_KEY` | Yes | MinIO access key |
@@ -107,10 +106,29 @@ influencerAPP/
 ├── docs/
 │   └── specs/
 │       ├── constitution.md          # Governing principles (non-negotiable)
-│       └── PRD.md                   # Product requirements
+│       ├── PRD.md                   # Product requirements
+│       ├── development-plan.md      # Phase-by-phase roadmap
+│       └── execution-state.md       # Current phase & task tracking
 ├── domain/                          # Pure domain, zero framework deps
+│   ├── model/                       # Value objects & entities
+│   ├── port/
+│   │   ├── inbound/                 # Use case interfaces
+│   │   └── outbound/                # Repository & adapter interfaces
+│   └── exception/                   # Domain exceptions
 ├── application/                     # Use cases, orchestration
+│   ├── service/                     # Use case implementations
+│   ├── dto/                         # Request/response objects
+│   └── event/                       # Kafka event payloads
 └── infrastructure/                  # Adapters, config, repos
+    ├── adapter/
+    │   ├── ai/                      # Gemini text generation
+    │   ├── kafka/                   # Kafka producer
+    │   ├── security/                # Token encryption
+    │   ├── storage/                 # MinIO object storage
+    │   └── youtube/                 # YouTube upload
+    ├── config/                      # Spring configuration
+    ├── entity/                      # JPA entities
+    └── repository/                  # Repository implementations
 ```
 
 ## Building and Testing
@@ -142,7 +160,7 @@ mvn spring-boot:run -pl infrastructure
 | GET | `/api/health` | No | Health check |
 | POST | `/api/channels/register` | Yes | Link YouTube channel via OAuth2 |
 | GET | `/api/channels` | Yes | List user channels (paginated) |
-| POST | `/api/videos/upload` | Yes | Upload video (multipart, max 100MB) |
+| POST | `/api/videos/upload` | Yes | Upload video (multipart, max 100MB, idempotent) |
 | GET | `/api/videos/{videoId}` | Yes | Get video status |
 | GET | `/api/videos` | Yes | List user videos (paginated) |
 
@@ -156,6 +174,17 @@ All errors return RFC 7807 `application/problem+json`.
 | `video-published` | `VideoPublishedEvent` | Emitted after YouTube upload completes |
 
 Event payloads contain no binary data. Video references use storage paths only.
+
+## Database Migrations
+
+Flyway manages schema evolution. Current migrations:
+
+| Version | Description |
+|---------|-------------|
+| V1 | Initial schema: tenants, users, channels, videos |
+| V2 | Add idempotency keys for upload deduplication |
+| V3 | Add processed events table for Kafka consumer idempotency |
+| V4 | Add outbox events table for reliable Kafka publishing |
 
 ## Clean Code & Lombok
 

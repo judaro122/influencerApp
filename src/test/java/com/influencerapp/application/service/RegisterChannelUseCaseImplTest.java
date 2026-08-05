@@ -2,7 +2,6 @@ package com.influencerapp.application.service;
 
 import com.influencerapp.domain.exception.DomainException;
 import com.influencerapp.domain.model.ChannelId;
-import com.influencerapp.domain.model.EncryptedTokens;
 import com.influencerapp.domain.model.TenantId;
 import com.influencerapp.domain.port.outbound.ChannelRepository;
 import com.influencerapp.infrastructure.adapter.security.TokenEncryptionService;
@@ -13,14 +12,21 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.Instant;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("RegisterChannelUseCase")
+
+/**
+ * RegisterChannelUseCaseImplTest component.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
 class RegisterChannelUseCaseImplTest {
 
     @Mock

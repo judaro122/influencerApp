@@ -16,6 +16,14 @@ import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
+/**
+ * Repository implementation persisting video aggregates via JPA.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class VideoRepositoryImpl implements VideoRepository {
 
     private final JpaVideoRepository jpaVideoRepository;

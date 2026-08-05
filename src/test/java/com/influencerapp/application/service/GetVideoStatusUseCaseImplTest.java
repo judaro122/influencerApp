@@ -19,6 +19,14 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("GetVideoStatusUseCase")
+/**
+ * GetVideoStatusUseCaseImplTest component.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 class GetVideoStatusUseCaseImplTest {
 
     @Mock

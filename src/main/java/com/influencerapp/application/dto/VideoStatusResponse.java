@@ -10,6 +10,14 @@ import lombok.Data;
 import java.time.Instant;
 
 @Data
+/**
+ * Data transfer object representing the current status of a video publishing operation.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class VideoStatusResponse {
 
     private VideoId videoId;

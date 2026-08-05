@@ -18,6 +18,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+/**
+ * Spring configuration class wiring infrastructure adapters and ports.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class InfrastructureConfig {
 
     @Bean

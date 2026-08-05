@@ -12,6 +12,14 @@ import java.util.Base64;
 
 @Slf4j
 @Component
+/**
+ * Adapter providing AES/GCM/NoPadding encryption for OAuth2 tokens.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class TokenEncryptionService {
 
     private static final String ALGORITHM = "AES/GCM/NoPadding";

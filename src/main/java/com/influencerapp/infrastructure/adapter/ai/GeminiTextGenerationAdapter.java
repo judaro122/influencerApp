@@ -8,6 +8,14 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+/**
+ * Adapter implementing AI text generation using Google Gemini.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class GeminiTextGenerationAdapter implements AITextGenerationPort {
 
     @Override

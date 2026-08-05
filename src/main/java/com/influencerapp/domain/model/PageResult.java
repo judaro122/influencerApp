@@ -6,6 +6,14 @@ import java.util.List;
 
 @Value
 @AllArgsConstructor
+/**
+ * Immutable value object representing a paginated collection of results.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class PageResult<T> {
 
     List<T> content;

@@ -10,6 +10,14 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * Use case implementation generating AI-powered video metadata.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class GenerateMetadataUseCaseImpl implements GenerateMetadataUseCase {
 
     private final AITextGenerationPort aiTextGenerationPort;

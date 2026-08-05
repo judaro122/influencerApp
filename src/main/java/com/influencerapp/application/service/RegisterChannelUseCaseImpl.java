@@ -15,6 +15,14 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * Use case implementation orchestrating YouTube channel registration.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class RegisterChannelUseCaseImpl implements RegisterChannelUseCase {
 
     private final ChannelRepository channelRepository;

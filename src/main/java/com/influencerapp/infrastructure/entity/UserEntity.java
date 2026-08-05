@@ -15,6 +15,14 @@ import java.time.Instant;
 @Data
 @NoArgsConstructor(force = true)
 @AllArgsConstructor
+/**
+ * JPA entity mapping the user aggregate to the database schema.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class UserEntity {
 
     @Id

@@ -6,6 +6,14 @@ import java.time.Instant;
 
 @Value
 @AllArgsConstructor
+/**
+ * Entity representing a registered user within the InfluencerAPP system.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class User {
 
     String userId;

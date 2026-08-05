@@ -5,6 +5,14 @@ import com.influencerapp.domain.model.TenantId;
 import com.influencerapp.domain.model.Video;
 import com.influencerapp.domain.model.VideoId;
 import java.util.Optional;
+/**
+ * Outbound port defining the contract for video persistence operations.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 
 public interface VideoRepository {
 

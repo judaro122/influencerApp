@@ -19,6 +19,14 @@ import java.time.Instant;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("integration")
+/**
+ * VideoRepositoryImplTest component.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 class VideoRepositoryImplTest extends RepositoryIntegrationTestBase {
 
     @Autowired

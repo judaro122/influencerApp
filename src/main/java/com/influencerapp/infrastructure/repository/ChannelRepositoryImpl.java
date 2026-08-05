@@ -1,10 +1,6 @@
 package com.influencerapp.infrastructure.repository;
 
-import com.influencerapp.domain.model.Channel;
-import com.influencerapp.domain.model.ChannelId;
-import com.influencerapp.domain.model.EncryptedTokens;
-import com.influencerapp.domain.model.PageResult;
-import com.influencerapp.domain.model.TenantId;
+import com.influencerapp.domain.model.*;
 import com.influencerapp.domain.port.outbound.ChannelRepository;
 import com.influencerapp.infrastructure.entity.ChannelEntity;
 import lombok.RequiredArgsConstructor;
@@ -14,11 +10,17 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
+
+/**
+ * Repository implementation persisting channel aggregates via JPA.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
 public class ChannelRepositoryImpl implements ChannelRepository {
 
     private final JpaChannelRepository jpaChannelRepository;

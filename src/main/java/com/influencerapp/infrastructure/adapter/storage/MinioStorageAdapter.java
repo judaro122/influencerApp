@@ -8,6 +8,14 @@ import java.io.InputStream;
 
 @Component
 @RequiredArgsConstructor
+/**
+ * Adapter implementing object storage operations using MinIO (S3-compatible).
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class MinioStorageAdapter implements ObjectStoragePort {
 
     @Override

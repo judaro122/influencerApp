@@ -10,6 +10,14 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * Use case implementation listing channels belonging to a tenant.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class ListChannelsUseCaseImpl implements ListChannelsUseCase {
 
     private final ChannelRepository channelRepository;

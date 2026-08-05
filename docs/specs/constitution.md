@@ -46,6 +46,7 @@ This constitution defines the non-negotiable principles, architecture rules, and
 - **Exception Handling**: Use domain-specific exceptions (`DomainException`, `TenantIsolationViolationException`). Never catch generic `Exception` without rethrow or wrapping.
 - **Logging**: Use `@Slf4j` (Lombok) for all classes requiring logging. No `System.out.println` or `System.err.println`.
 - **Null Safety**: Avoid `null` references. Use `Optional` for nullable return values. Use `@NonNull` / `@Nullable` annotations where applicable.
+- **JavaDoc Mandatory**: Every class, interface, enum, and record MUST have a JavaDoc comment. The JavaDoc MUST include an `@author` tag with the developer's signature.
 
 ## 4. Security & Compliance Rules
 

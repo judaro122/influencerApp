@@ -5,6 +5,14 @@ import lombok.Data;
 import java.time.Instant;
 
 @Data
+/**
+ * Data transfer object representing a YouTube channel summary.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class ChannelResponse {
 
     private ChannelId channelId;

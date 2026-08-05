@@ -14,6 +14,7 @@ This document derives the system architecture from the Project Constitution (v1.
 | §6 Free-Tier Constraints | Resilience4j circuit breakers + fallback placeholder text for Gemini |
 | §7 Clean Code & Maintainability | Single responsibility, meaningful names, small classes/methods, no dead code |
 | §8 Lombok for Boilerplate Elimination | `@Data`, `@Builder`, `@Slf4j`, `@Value`, `@With`, `@RequiredArgsConstructor` standard across all layers |
+| §8a Java Records for Simple Data Carriers | Prefer `record` over `@Value` for simple immutable data carriers with no behavior |
 | §9 Maven as Canonical Build | Multi-module Maven project; parent POM manages versions; no Gradle |
 | §11 Out of Scope | Transcoding, thumbnails, scheduling, WebSocket, admin UI, batch upload, multi-language |
 
@@ -102,6 +103,15 @@ com.influencerapp
 │   │   ├── User.java
 │   │   ├── Channel.java
 │   │   └── Video.java
+│   │   ├── TenantId.java          # record (simple value object)
+│   │   ├── VideoId.java           # record (simple value object)
+│   │   ├── ChannelId.java         # record (simple value object)
+│   │   ├── FileMetadata.java      # record (simple value object)
+│   │   ├── StoragePath.java       # record (simple value object)
+│   │   ├── YouTubeUrl.java        # record (simple value object)
+│   │   ├── VideoStatus.java       # enum
+│   │   ├── EncryptedTokens.java   # @Value (requires validation)
+│   │   └── PageResult.java        # record (simple pagination carrier)
 │   ├── port
 │   │   ├── inbound
 │   │   │   ├── UploadVideoUseCase.java
@@ -124,11 +134,13 @@ com.influencerapp
 │   │   ├── YouTubePublishingService.java
 │   │   └── ChannelRegistrationService.java
 │   ├── event
-│   │   ├── VideoReceivedEvent.java
-│   │   └── VideoPublishedEvent.java
+│   │   ├── VideoReceivedEvent.java   # record (simple event payload)
+│   │   └── VideoPublishedEvent.java  # record (simple event payload)
 │   └── dto
 │       ├── VideoUploadRequest.java
-│       └── VideoStatusResponse.java
+│       ├── VideoStatusResponse.java  # record (simple response)
+│       ├── ChannelResponse.java      # record (simple response)
+│       └── PaginatedResponse.java    # record (simple pagination wrapper)
 └── infrastructure
     ├── adapter
     │   ├── http
@@ -166,12 +178,26 @@ com.influencerapp
 
 ## 5. Clean Code & Lombok Conventions
 
-### 5.1 Lombok Usage
+### 5.1 Java Records vs Lombok
+Java 17 `record` types are preferred for simple immutable data carriers with no behavior. Use Lombok `@Value` when the type requires:
+- Custom validation in constructor
+- Non-destructive mutation (`@With`)
+- JPA entity mapping (`@NoArgsConstructor(force = true)`)
+
+| Type | Preferred Approach | Rationale |
+|------|-------------------|-----------|
+| Simple value objects (e.g., `TenantId`, `VideoId`) | `record` | Concise, built-in immutability, equals/hashCode/toString |
+| DTOs with no behavior (e.g., `VideoStatusResponse`) | `record` | Standard Java, no Lombok dependency |
+| Domain models with invariants | `@Value` + custom constructor | Validation logic required |
+| JPA entities | `@NoArgsConstructor(force = true)` + `@Data` | Hibernate requirement |
+| Complex builders | `@Builder` | Fluent API for many fields |
+
+### 5.2 Lombok Usage
 Lombok is the canonical tool for eliminating Java boilerplate. All classes MUST use Lombok annotations where applicable.
 
 | Annotation | Usage | Layer |
 |------------|-------|-------|
-| `@Value` | Immutable domain models and value objects | domain |
+| `@Value` | Immutable domain models and value objects with invariants | domain |
 | `@Data` | Mutable DTOs and request/response objects | application, infrastructure |
 | `@Builder` | Complex object construction, especially DTOs and entities | all |
 | `@Slf4j` | Logging in all classes that log | all |
@@ -191,6 +217,7 @@ Lombok is the canonical tool for eliminating Java boilerplate. All classes MUST 
 - **Null Safety**: Avoid `null`. Use `Optional` for nullable returns. Use `@NonNull`/`@Nullable`.
 - **Exception Handling**: Domain-specific exceptions only. No generic `catch (Exception)` without rethrow/wrap.
 - **Test Readability**: Test method names describe scenario + expected outcome. Use `@DisplayName`.
+- **JavaDoc Mandatory**: Every class, interface, enum, and record MUST have a JavaDoc comment. The JavaDoc MUST include an `@author` tag with the developer's signature.
 
 ---
 
@@ -224,22 +251,22 @@ Lombok is the canonical tool for eliminating Java boilerplate. All classes MUST 
 ### 6.1 Aggregates
 
 **Video** (Aggregate Root)
-- `VideoId` (value object)
-- `TenantId` (value object)
-- `ChannelId` (value object)
-- `FileMetadata` (filename, size, mimeType, checksum)
-- `StoragePath` (value object)
-- `Metadata` (title, description)
+- `VideoId` (record)
+- `TenantId` (record)
+- `ChannelId` (record)
+- `FileMetadata` (record: filename, size, mimeType, checksum)
+- `StoragePath` (record)
+- `Metadata` (title, description) — `@Value` if validation required
 - `Status` (enum: RECEIVED, PROCESSING, UPLOADING, PUBLISHED, FAILED)
-- `YouTubeVideoId` (value object)
+- `YouTubeVideoId` (record)
 - `CreatedAt`, `UpdatedAt`
 
 **Channel** (Aggregate Root)
-- `ChannelId` (value object)
-- `TenantId` (value object)
-- `YouTubeChannelId`
-- `YouTubeChannelTitle`
-- `EncryptedTokens` (access_token, refresh_token, token_expiry) — never plaintext
+- `ChannelId` (record)
+- `TenantId` (record)
+- `YouTubeChannelId` (record)
+- `YouTubeChannelTitle` (record)
+- `EncryptedTokens` (access_token, refresh_token, token_expiry) — `@Value` with decryption validation
 - `Scope` (fixed to `youtube.upload`)
 
 ### 6.2 Ports (Outbound)
