@@ -10,7 +10,8 @@
       ],
       "environment": {
         "DATABASE_URI": "PostgreSQL://agent_readonly:read_only@192.168.100.10:5432/influencerapp"
-      }
+      },
+      "enabled": true
     }
   }
 }

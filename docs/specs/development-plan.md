@@ -48,8 +48,6 @@ Before writing any application code, the following gates must be satisfied:
 | Domain layer: Exceptions (`DomainException`, `TenantIsolationViolationException`) | Constitution §3.4 | Custom exceptions in `domain.exception` |
 | Database schema: Flyway V1–V4 migrations | Infra-spec §3 | All tables created, `outbox_events` includes `tenant_id` and unique constraint |
 | Docker Compose dev environment | Infra-spec §2 | `docker compose up` starts all services |
-| JWT authentication filter (`JwtAuthFilter`) | Security-spec §2, Architecture §12.1 | `401` returned for missing/invalid tokens |
-| Tenant extraction from JWT | Security-spec §3 | `TenantId` set on `SecurityContext` for all requests |
 | Unit tests for domain models and value objects | Test-spec §5.1 | 90%+ coverage on domain layer |
 
 **Audit items addressed:** AUDIT-001 (exception naming), AUDIT-004 (ports), AUDIT-014/015 (US traceability)
@@ -64,6 +62,8 @@ Before writing any application code, the following gates must be satisfied:
 |------|------------------------|---------------------|
 | `RegisterUserUseCase` implementation | Architecture §6.3 | User created with hashed password, `tenantId` assigned |
 | `LoginUseCase` implementation | Architecture §6.3 | JWT returned with `sub`, `tenantId`, `exp` claims |
+| JWT authentication filter (`JwtAuthFilter`) | Security-spec §2, Architecture §12.1 | `401` returned for missing/invalid tokens |
+| Tenant extraction from JWT | Security-spec §3 | `TenantId` set on `SecurityContext` for all requests |
 | `RegisterChannelUseCase` implementation | Architecture §6.3, Security-spec §4 | OAuth2 code exchanged, tokens encrypted with AES/GCM, stored as `bytea` |
 | `GeminiAdapter` implementing `AITextGenerationPort` | Integrations-spec §3, Architecture §11.1 | Calls Gemini API, returns title + description |
 | `GenerateMetadataUseCase` implementation | Architecture §6.3 | Orchestrates Gemini call, handles fallback |
@@ -137,18 +137,18 @@ Before writing any application code, the following gates must be satisfied:
 Phase 1 (Foundation)
  ├── Domain layer (aggregates, ports, exceptions)
  ├── Flyway migrations V1–V4
- ├── Docker Compose dev environment
- └── JWT authentication
+ └── Docker Compose dev environment
        │
        ▼
 Phase 2 (Core Features)
+ ├── JWT authentication filter
  ├── Auth endpoints (register, login)
  ├── Channel registration (OAuth2 + token encryption)
  ├── Gemini adapter + circuit breaker + fallback
  ├── MinIO storage adapter (streaming upload)
  └── Unit + integration + contract tests
-       │
-       ▼
+        │
+        ▼
 Phase 3 (Upload Pipeline)
  ├── Upload use case + idempotency
  ├── YouTube upload adapter + streaming

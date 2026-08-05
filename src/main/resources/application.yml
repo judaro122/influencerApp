@@ -1,0 +1,77 @@
+﻿spring:
+  application:
+    name: influencerapp
+
+  datasource:
+    url: jdbc:postgresql://192.168.100.10:5432/influencerapp
+    username: influencerapp
+    password: ${DB_PASSWORD:influencerapp}
+    driver-class-name: org.postgresql.Driver
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    clean-disabled: true
+    validate-on-migrate: true
+    retry-attempts: 3
+    retry-delay: 5s
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  kafka:
+    bootstrap-servers: 192.168.100.10:9092
+    consumer:
+      group-id: influencerapp-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+  minio:
+    endpoint: http://192.168.100.10:9000
+    access-key: minioadmin
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    bucket: video-bucket
+
+  gemini:
+    api-key: ${GEMINI_API_KEY}
+
+encryption:
+  key: ${ENCRYPTION_KEY:}
+
+jwt:
+  secret: ${JWT_SECRET:}
+  expiration: 86400000
+
+logging:
+  level:
+    root: INFO
+    com.influencerapp: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always

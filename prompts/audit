@@ -1,0 +1,65 @@
+Act as a Principal Systems Architect and Technical Auditor specializing in Spec-Driven Development (SDD). 
+
+Your objective is to perform a comprehensive, cross-document audit on all files inside the `docs/specs/` directory for the "InfluencerAPP" project. You must verify strict alignment, coherence, zero contradictions, and complete traceability across the entire specification suite.
+
+### Input Documents to Analyze:
+1. `docs/specs/constitution.md` (Governing Law & Non-Negotiable Rules)
+2. `docs/specs/brd.md` & `docs/specs/prd.md` (Business & Product Requirements)
+3. `docs/specs/arq/architecture.md` (Hexagonal Architecture, Ports & Adapters)
+4. `docs/specs/arq/data-model.md` (PostgreSQL Schema, Multi-tenancy, Column-level Encryption)
+5. `docs/specs/arq/kafka-events.md` (Event Schemas, Topics, Outbox Pattern)
+6. `docs/specs/arq/openapi.yaml` (REST Endpoints, DTOs, RFC 7807 Errors)
+7. `docs/specs/security-spec.md` (JWT, AES/GCM Token Encryption, Tenant Isolation)
+8. `docs/specs/integrations-spec.md` (MinIO Streaming, Gemini Fallbacks, Resilience4j, YouTube API)
+9. `docs/specs/observability-spec.md` (JSON MDC Logging, Micrometer Metrics, Health Checks)
+10. `docs/specs/test-spec.md` (Testcontainers Strategy, Mocking Rules, Layer Coverage)
+11. `docs/specs/infra-spec.md` (Docker Compose, Flyway/Liquibase Migrations, Env Vars)
+12. All User Stories inside `docs/specs/hus/`
+
+---
+
+### Audit Criteria & Analysis Axes:
+
+#### 1. Constitution Compliance Check (P0 - Non-Negotiable)
+- Verify if any spec, schema, endpoint, or User Story violates any of the 12 sections of `constitution.md`.
+- Pay specific attention to:
+  - Hexagonal Architecture boundaries (no Spring/JPA in domain).
+  - Multi-Tenancy isolation (`tenant_id` present in DB, HTTP headers, Kafka payloads, and MinIO storage paths).
+  - Streaming over buffering (no in-memory video loading allowed).
+  - Asynchronous event-driven publishing (Outbox pattern and Kafka usage).
+  - Secrets handling and token encryption at rest (`AES/GCM/NoPadding`).
+  - Resilience4j circuit breakers and Gemini fallback behavior.
+
+#### 2. Cross-Document Entity & Contract Consistency
+- **Naming & Type Alignment:** Do field names, data types, HTTP status codes, and topic names match exactly across `openapi.yaml`, `data-model.md`, `kafka-events.md`, and `hus/`? (e.g., `video_id` vs `videoId`, `tenant_id` vs `tenantId`).
+- **Resilience Alignment:** Do the retry and circuit breaker thresholds defined in `integrations-spec.md` match the settings in `constitution.md` and `arq/architecture.md`?
+- **Observability Traceability:** Do the MDC log keys (`correlation_id`, `tenant_id`, `video_id`) in `observability-spec.md` match the headers in `openapi.yaml` and `kafka-events.md`?
+
+#### 3. Completeness & Edge Case Coverage
+- Are there unmapped error responses or missing RFC 7807 error formats in `openapi.yaml`?
+- Are idempotency key mechanics (`Idempotency-Key` header) consistently documented across API specs, database locking, and user stories?
+- Are Dead Letter Queue (DLQ) retry mechanisms in `kafka-events.md` fully aligned with the Outbox processor in `data-model.md`?
+
+#### 4. Traceability Chain
+- Can every User Story (`US-XX`) be directly traced back to a PRD requirement, an Architecture Port, an OpenAPI endpoint, and a specific Test Case in `test-spec.md`?
+
+---
+
+### Output Requirements:
+Generate a single, comprehensive Markdown report titled **`docs/specs/audit-report.md`** using the following structure:
+
+1. **Executive Summary**: Overall status (`PASSED`, `PASSED_WITH_WARNINGS`, or `FAILED`) and total findings count broken down by severity.
+2. **Severity Matrix**: Categorize findings into:
+   - `CRITICAL` (Violates Constitution or causes build/system failure)
+   - `HIGH` (Inconsistency between specs, e.g., schema field mismatch)
+   - `MEDIUM` (Missing edge-case definition or vague acceptance criteria)
+   - `LOW` (Stylistic inconsistencies or minor typos)
+3. **Detailed Findings Table**:
+   - `ID` (e.g., `AUDIT-001`)
+   - `Severity`
+   - `Location / Files Affected`
+   - `Conflict Description` (State exactly what File A says vs. what File B says)
+   - `Exact Remediation` (Provide the exact code/text diff or fix required)
+4. **Document Readiness Gate**: A checklist of all documents in `docs/specs/` indicating their final status (`READY_FOR_CODE` vs `NEEDS_REVISION`).
+
+Proceed with the audit and generate `docs/specs/audit-report-1.md`.

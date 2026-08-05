@@ -1,0 +1,21 @@
+﻿spring:
+  config:
+    activate:
+      on-profile: docker
+
+  datasource:
+    url: jdbc:postgresql://postgres:5432/influencerapp
+    username: influencerapp
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+  kafka:
+    bootstrap-servers: kafka:9092
+
+  minio:
+    endpoint: http://minio:9000
+    access-key: minioadmin
+    secret-key: ${SPRING_MINIO_SECRET_KEY}
+
+logging:
+  level:
+    root: INFO
