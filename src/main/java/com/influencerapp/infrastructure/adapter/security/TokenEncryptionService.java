@@ -10,16 +10,14 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-@Slf4j
-@Component
 /**
  * Adapter providing AES/GCM/NoPadding encryption for OAuth2 tokens.
  *
  * @author judaro122
  * @since 1.0.0
  */
-
-
+@Slf4j
+@Component
 public class TokenEncryptionService {
 
     private static final String ALGORITHM = "AES/GCM/NoPadding";

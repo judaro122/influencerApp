@@ -1,9 +1,11 @@
 package com.influencerapp.application.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import java.util.List;
 
 @Data
+@AllArgsConstructor
 /**
  * Data transfer object wrapping a paginated collection of results.
  *

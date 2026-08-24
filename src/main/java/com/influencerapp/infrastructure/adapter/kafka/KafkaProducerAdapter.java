@@ -5,16 +5,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
-@Component
-@RequiredArgsConstructor
 /**
  * Adapter implementing Kafka event publishing operations.
  *
  * @author judaro122
  * @since 1.0.0
  */
-
-
+@Component
+@RequiredArgsConstructor
 public class KafkaProducerAdapter implements KafkaProducerPort {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;

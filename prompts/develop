@@ -4,3 +4,12 @@ Please read `docs/specs/development-plan.md` carefully alongside
 We are ready to start execution. Execute PHASE 0 only
 
 Remember the strict protocol: DO NOT advance to Phase 1 until Phase 0 is verified. Stop after Phase 0 and provide the verification steps.
+
+
+
+Please read `docs/specs/development-plan.md` carefully alongside
+`docs/specs/constitution.md` and `docs/specs/infra-spec.md`.
+
+We are ready to start execution. Execute PHASE 2 only
+
+Remember the strict protocol: DO NOT advance to Phase 3 until Phase 2 is verified. Stop after Phase 2 and provide the verification steps.
