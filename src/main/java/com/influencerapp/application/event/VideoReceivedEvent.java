@@ -8,6 +8,14 @@ import com.influencerapp.domain.model.VideoId;
 import lombok.Value;
 
 @Value
+/**
+ * Event payload emitted after a video is successfully uploaded and validated.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class VideoReceivedEvent {
 
     TenantId tenantId;

@@ -18,6 +18,14 @@ import java.time.Instant;
 @Data
 @NoArgsConstructor(force = true)
 @AllArgsConstructor
+/**
+ * JPA entity mapping the video aggregate to the database schema.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class VideoEntity {
 
     @Id

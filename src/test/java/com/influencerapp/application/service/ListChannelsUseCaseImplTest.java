@@ -16,6 +16,14 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ListChannelsUseCase")
+/**
+ * ListChannelsUseCaseImplTest component.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 class ListChannelsUseCaseImplTest {
 
     @Mock

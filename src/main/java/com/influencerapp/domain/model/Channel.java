@@ -6,6 +6,14 @@ import java.time.Instant;
 
 @Value
 @AllArgsConstructor
+/**
+ * Aggregate root representing a linked YouTube channel for a tenant.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class Channel {
 
     ChannelId channelId;

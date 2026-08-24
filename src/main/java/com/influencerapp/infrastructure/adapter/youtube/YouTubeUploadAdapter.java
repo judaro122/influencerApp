@@ -9,6 +9,12 @@ import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
 
+/**
+ * Adapter implementing YouTube video upload via the YouTube Data API v3.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
 @Component
 @RequiredArgsConstructor
 public class YouTubeUploadAdapter implements YouTubeUploadPort {

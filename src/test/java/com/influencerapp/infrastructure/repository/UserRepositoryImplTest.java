@@ -13,6 +13,14 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("integration")
+/**
+ * UserRepositoryImplTest component.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 class UserRepositoryImplTest extends RepositoryIntegrationTestBase {
 
     @Autowired

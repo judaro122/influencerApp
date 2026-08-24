@@ -21,6 +21,14 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * Use case implementation orchestrating the video upload pipeline.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class UploadVideoUseCaseImpl implements UploadVideoUseCase {
 
     private final VideoRepository videoRepository;

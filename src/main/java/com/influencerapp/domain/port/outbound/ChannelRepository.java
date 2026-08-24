@@ -5,6 +5,14 @@ import com.influencerapp.domain.model.ChannelId;
 import com.influencerapp.domain.model.PageResult;
 import com.influencerapp.domain.model.TenantId;
 import java.util.Optional;
+/**
+ * Outbound port defining the contract for channel persistence operations.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 
 public interface ChannelRepository {
 

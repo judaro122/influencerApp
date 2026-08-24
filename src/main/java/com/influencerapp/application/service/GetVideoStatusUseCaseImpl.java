@@ -8,10 +8,16 @@ import com.influencerapp.domain.port.inbound.GetVideoStatusUseCase;
 import com.influencerapp.domain.port.outbound.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+
+/**
+ * Use case implementation retrieving the current status of a video.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
 public class GetVideoStatusUseCaseImpl implements GetVideoStatusUseCase {
 
     private final VideoRepository videoRepository;

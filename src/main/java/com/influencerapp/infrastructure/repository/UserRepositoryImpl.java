@@ -11,6 +11,14 @@ import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
+/**
+ * Repository implementation persisting user aggregates via JPA.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class UserRepositoryImpl implements UserRepository {
 
     private final JpaUserRepository jpaUserRepository;

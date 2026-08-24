@@ -14,6 +14,14 @@ import java.time.Instant;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("integration")
+/**
+ * ChannelRepositoryImplTest component.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 class ChannelRepositoryImplTest extends RepositoryIntegrationTestBase {
 
     @Autowired

@@ -2,32 +2,38 @@
 
 Backend service that automates YouTube content publishing. Users upload videos through a REST API; the system generates AI-powered titles and descriptions using Google Gemini (free tier), uploads the video to a pre-registered YouTube channel, and emits lifecycle events through Apache Kafka. Multi-tenancy is enforced by default: each authenticated user manages their own YouTube channels.
 
+> **Current Status:** Phase 1 (Foundation) and Phase 2 (Core Features) are complete. Phase 3 (Upload Pipeline — Kafka integration, YouTube publishing, event-driven pipeline) is not yet started. See [`docs/specs/execution-state.md`](docs/specs/execution-state.md) for details.
+
 ## Key Features
 
 - **Hexagonal Architecture**: strict ports & adapters with zero framework dependencies in the domain layer.
 - **Multi-Tenancy**: tenant isolation in every query, storage path, and Kafka payload.
-- **Streaming Uploads**: video files are never fully loaded into memory; chunked transfer to MinIO and YouTube.
+- **Streaming Uploads**: video files are never fully loaded into memory; chunked transfer to MinIO.
 - **AI Metadata**: Gemini-powered title and description generation with circuit breaker and placeholder fallback.
-- **Event-Driven**: asynchronous upload pipeline via Kafka with DLQ, outbox pattern, and consumer idempotency.
 - **Resilience**: Resilience4j circuit breakers, exponential backoff with jitter, graceful degradation.
-- **Security**: JWT authentication, OAuth2 YouTube linking, AES/GCM/NoPadding token encryption.
+- **Security**: AES/GCM/NoPadding token encryption for OAuth2 tokens.
+- **Database Migrations**: Flyway-managed schema evolution (V1–V4).
+- **JWT Authentication**: Bearer token auth with tenant extraction from `sub` claim.
+- **Testing**: unit tests for use cases, integration tests with Testcontainers, contract tests against OpenAPI.
+
+> **Planned (Phase 3–4, not yet started):** Event-driven upload pipeline via Kafka (DLQ, outbox pattern, consumer idempotency), YouTube upload adapter with streaming, `Idempotency-Key` header support, Micrometer/Prometheus metrics, and health checks for all dependencies.
 
 ## Tech Stack
 
 | Concern | Technology |
 |---------|-----------|
 | Language | Java 17 |
-| Framework | Spring Boot 3.x |
+| Framework | Spring Boot 3.3.4 |
 | Architecture | Hexagonal (Ports & Adapters) |
-| Build | Maven (multi-module) |
+| Build | Maven (single module; multi-module split planned for Phase 3) |
 | Boilerplate | Lombok |
 | Database | PostgreSQL 15+ |
+| Migrations | Flyway |
 | Messaging | Apache Kafka |
 | Storage | MinIO |
 | AI | Google Generative AI (Gemini) |
 | YouTube | YouTube Data API v3 |
 | Resilience | Resilience4j |
-| Auth | Spring Security + JWT |
 | Encryption | JCE (AES/GCM/NoPadding) |
 | Docs | SpringDoc OpenAPI 3.0 |
 | Testing | JUnit 5, Mockito, Testcontainers |
@@ -48,32 +54,40 @@ Backend service that automates YouTube content publishing. Users upload videos t
 ```bash
 git clone https://github.com/your-org/influencerAPP.git
 cd influencerAPP
-mvn clean verify
+mvn clean test
 ```
 
-### 2. Start infrastructure
+### 2. Start with Docker Compose
 
 ```bash
-docker compose up -d postgres kafka zookeeper minio
+# Build the application image (no cache)
+docker compose build --no-cache app
+
+# Start all services in detached mode
+docker compose up -d
+
+# Follow application logs
+docker compose logs -f app
+
+# Stop and remove containers + volumes
+docker compose down -v
 ```
 
-### 3. Run the application
+### 3. Verify
 
 ```bash
-mvn spring-boot:run -pl infrastructure
-```
+# Health check (note: context path /8080 is required when behind reverse proxy)
+curl http://localhost:8080/8080/api/health
 
-Or run the packaged jar:
+# Register a new user
+curl -X POST http://localhost:8080/8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","email":"test@example.com","password":"SecurePass123"}'
 
-```bash
-mvn clean package -DskipTests
-java -jar infrastructure/target/infrastructure-0.1.0.jar
-```
-
-### 4. Verify
-
-```bash
-curl http://localhost:8080/api/health
+# Login
+curl -X POST http://localhost:8080/8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"SecurePass123"}'
 ```
 
 ## Environment Variables
@@ -85,9 +99,8 @@ curl http://localhost:8080/api/health
 | `GEMINI_API_KEY` | Yes | Google Generative AI API key |
 | `YOUTUBE_CLIENT_ID` | Yes | Google OAuth2 client ID |
 | `YOUTUBE_CLIENT_SECRET` | Yes | Google OAuth2 client secret |
-| `DATABASE_URL` | Yes | JDBC URL (e.g. `jdbc:postgresql://localhost:5432/influencerapp`) |
-| `DATABASE_USERNAME` | Yes | Database user |
-| `DATABASE_PASSWORD` | Yes | Database password |
+| `DB_PASSWORD` | Yes | PostgreSQL password |
+| `MINIO_ROOT_PASSWORD` | Yes | MinIO root password |
 | `KAFKA_BOOTSTRAP_SERVERS` | Yes | Kafka broker addresses |
 | `MINIO_ENDPOINT` | Yes | MinIO endpoint (e.g. `localhost:9000`) |
 | `MINIO_ACCESS_KEY` | Yes | MinIO access key |
@@ -98,7 +111,7 @@ curl http://localhost:8080/api/health
 
 ```
 influencerAPP/
-├── pom.xml                          # Parent POM
+├── pom.xml                          # Parent POM (single module; multi-module split planned for Phase 3)
 ├── docker-compose.yml
 ├── Dockerfile
 ├── README.md
@@ -107,19 +120,55 @@ influencerAPP/
 ├── docs/
 │   └── specs/
 │       ├── constitution.md          # Governing principles (non-negotiable)
-│       └── PRD.md                   # Product requirements
-├── domain/                          # Pure domain, zero framework deps
-├── application/                     # Use cases, orchestration
-└── infrastructure/                  # Adapters, config, repos
+│       ├── PRD.md                   # Product requirements
+│       ├── development-plan.md      # Phase-by-phase roadmap
+│       ├── execution-state.md       # Current phase & task tracking
+│       └── arq/
+│           ├── architecture.md
+│           ├── data-model.md
+│           ├── kafka-events.md
+│           └── openapi.yaml
+├── src/
+│   ├── main/java/com/influencerapp/
+│   │   ├── InfluencerAppApplication.java
+│   │   ├── domain/                  # Pure domain, zero framework deps
+│   │   │   ├── model/               # Value objects & entities
+│   │   │   ├── port/
+│   │   │   │   ├── inbound/         # Use case interfaces
+│   │   │   │   └── outbound/        # Repository & adapter interfaces
+│   │   │   └── exception/           # Domain exceptions
+│   │   ├── application/             # Use cases, orchestration
+│   │   │   ├── service/             # Use case implementations
+│   │   │   ├── dto/                 # Request/response objects
+│   │   │   └── event/               # Kafka event payloads
+│   │   └── infrastructure/          # Adapters, config, repos
+│   │       ├── adapter/
+│   │       │   ├── ai/              # Gemini text generation
+│   │       │   ├── kafka/           # Kafka producer (stub)
+│   │       │   ├── security/        # Token encryption
+│   │       │   ├── storage/         # MinIO object storage
+│   │       │   ├── youtube/         # YouTube upload (stub)
+│   │       │   └── http/            # REST controllers, JWT filter
+│   │       ├── config/              # Spring configuration
+│   │       ├── entity/              # JPA entities
+│   │       └── repository/          # Repository implementations
+│   └── test/java/com/influencerapp/
+│       ├── application/service/     # Use case unit tests
+│       ├── infrastructure/adapter/  # Adapter integration & contract tests
+│       └── infrastructure/repository/
+└── src/main/resources/
+    ├── application.yml
+    ├── application-docker.yml
+    └── db/migration/                # Flyway V1–V4
 ```
 
 ## Building and Testing
 
 ```bash
-# Compile all modules
-mvn compile
+# Compile
+mvn clean compile
 
-# Run unit tests
+# Run unit tests (29 tests: 21 unit tests + 8 contract tests)
 mvn test
 
 # Run integration tests (requires Docker)
@@ -129,26 +178,88 @@ mvn verify -Pintegration-tests
 mvn clean package -DskipTests
 
 # Generate OpenAPI docs
-mvn spring-boot:run -pl infrastructure
-# Then visit http://localhost:8080/swagger-ui.html
+mvn spring-boot:run
+# Then visit http://localhost:8080/8080/swagger-ui.html
 ```
+
+### Phase 2 Verification
+
+Run the following commands to verify Phase 2 completion:
+
+```bash
+# 1. Compile
+mvn clean compile
+
+# 2. Run unit tests (29 tests)
+mvn test
+
+# 3. Run integration tests (requires Docker)
+mvn verify -Pintegration-tests
+```
+
+**Test the endpoints** (after starting with Docker Compose):
+
+```bash
+# Health check
+curl http://localhost:8080/api/health
+
+# Register a new user
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","email":"test@example.com","password":"SecurePass123"}'
+
+# Login
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"SecurePass123"}'
+
+# Register a YouTube channel (requires valid OAuth2 tokens)
+curl -X POST http://localhost:8080/api/channels/register \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My YouTube Channel",
+    "encryptedAccessToken": "encrypted_token_here",
+    "encryptedRefreshToken": "encrypted_refresh_here",
+    "tokenExpiry": "2025-12-31T23:59:59Z"
+  }'
+
+# List channels
+curl http://localhost:8080/api/channels \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+Expected results:
+- `mvn clean compile` — BUILD SUCCESS
+- `mvn test` — 29 tests pass (21 unit tests + 8 contract tests)
+- `mvn verify -Pintegration-tests` — All integration tests pass (requires Docker running)
+- All endpoints return valid JSON responses
 
 ## API Overview
 
+### Implemented (Phase 2)
+
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/api/auth/register` | No | Register new user |
-| POST | `/api/auth/login` | No | Authenticate and receive JWT |
-| GET | `/api/health` | No | Health check |
-| POST | `/api/channels/register` | Yes | Link YouTube channel via OAuth2 |
-| GET | `/api/channels` | Yes | List user channels (paginated) |
-| POST | `/api/videos/upload` | Yes | Upload video (multipart, max 100MB) |
-| GET | `/api/videos/{videoId}` | Yes | Get video status |
-| GET | `/api/videos` | Yes | List user videos (paginated) |
+| POST | `/8080/api/auth/register` | No | Register new user |
+| POST | `/8080/api/auth/login` | No | Authenticate and receive JWT |
+| POST | `/8080/api/channels/register` | Yes | Link YouTube channel via OAuth2 |
+| GET | `/8080/api/channels` | Yes | List user channels (paginated) |
+
+### Planned (Phase 3–4, not yet started)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/8080/api/health` | No | Health check (PostgreSQL, Kafka, MinIO, YouTube API) |
+| POST | `/8080/api/videos/upload` | Yes | Upload video (multipart, max 100MB, idempotent via `Idempotency-Key`) |
+| GET | `/8080/api/videos/{videoId}` | Yes | Get video status |
+| GET | `/8080/api/videos` | Yes | List user videos (paginated) |
 
 All errors return RFC 7807 `application/problem+json`.
 
-## Kafka Events
+## Kafka Events (Planned — Phase 3)
+
+The following Kafka topics and events are defined in the architecture specification but are **not yet implemented**. Phase 3 will implement the full event-driven upload pipeline.
 
 | Topic | Event | Description |
 |-------|-------|-------------|
@@ -157,11 +268,75 @@ All errors return RFC 7807 `application/problem+json`.
 
 Event payloads contain no binary data. Video references use storage paths only.
 
+**Planned features (Phase 3):**
+- DLQ topics: `video-received-dlq`, `video-published-dlq` (after 3 retries)
+- Outbox pattern: events persisted to `outbox_events` table when Kafka is unavailable
+- Consumer idempotency: `processed_events` table prevents duplicate processing
+- Idempotent consumers: duplicate events do not cause duplicate YouTube uploads
+
+## Database Migrations
+
+Flyway manages schema evolution. Current migrations:
+
+| Version | Description |
+|---------|-------------|
+| V1 | Initial schema: tenants, users, channels, videos |
+| V2 | Add idempotency keys for upload deduplication |
+| V3 | Add processed events table for Kafka consumer idempotency |
+| V4 | Add outbox events table for reliable Kafka publishing |
+
+## Development Phases
+
+The project follows a phased development approach as defined in [`docs/specs/development-plan.md`](docs/specs/development-plan.md). Current status is tracked in [`docs/specs/execution-state.md`](docs/specs/execution-state.md).
+
+| Phase | Name | Status | Description |
+|-------|------|--------|-------------|
+| 1 | Foundation | ✅ Complete | Project scaffolding, domain layer, ports, Flyway migrations, Docker Compose |
+| 2 | Core Features | ✅ Complete | JWT auth, channel registration, Gemini AI adapter, MinIO storage, tests |
+| 3 | Upload Pipeline | ⏳ Not Started | Video upload, YouTube publishing, Kafka event emission, outbox pattern |
+| 4 | Production Readiness | ⏳ Not Started | Monitoring, health checks, Docker production profile, CI/CD |
+
+**Next Step:** Phase 3 — Kafka Integration & Event-Driven Pipeline. Do not advance until Phase 2 is verified.
+
+### Phase 2 Implementation Summary
+
+**New files created:**
+
+| File | Description |
+|------|-------------|
+| `src/main/java/com/influencerapp/application/service/RegisterUserUseCaseImpl.java` | User registration with BCrypt password hashing |
+| `src/main/java/com/influencerapp/application/service/LoginUseCaseImpl.java` | JWT generation with `sub`, `tenantId`, `exp` claims |
+| `src/main/java/com/influencerapp/infrastructure/adapter/http/JwtAuthFilter.java` | Bearer token validation, tenant extraction, RFC 7807 errors |
+| `src/main/java/com/influencerapp/infrastructure/config/SecurityConfig.java` | Spring Security with stateless sessions |
+| `src/main/java/com/influencerapp/infrastructure/adapter/http/AuthController.java` | REST endpoints for `/api/auth/register` and `/api/auth/login` |
+| `src/main/java/com/influencerapp/infrastructure/adapter/http/ChannelController.java` | REST endpoints for `/api/channels/register` and `/api/channels` |
+| `src/main/java/com/influencerapp/application/dto/UserRegistrationRequest.java` | Registration request DTO |
+| `src/main/java/com/influencerapp/application/dto/LoginRequest.java` | Login request DTO |
+| `src/main/java/com/influencerapp/application/dto/LoginResponse.java` | Login response DTO with JWT |
+| `src/test/java/com/influencerapp/application/service/RegisterUserUseCaseImplTest.java` | 4 unit tests |
+| `src/test/java/com/influencerapp/application/service/LoginUseCaseImplTest.java` | 5 unit tests |
+| `src/test/java/com/influencerapp/infrastructure/adapter/ai/GeminiTextGenerationAdapterIT.java` | 2 integration tests with WireMock |
+| `src/test/java/com/influencerapp/infrastructure/adapter/storage/MinioStorageAdapterIT.java` | 1 integration test with Testcontainers MinIO |
+| `src/test/java/com/influencerapp/infrastructure/adapter/http/AuthControllerContractTest.java` | 4 contract tests |
+| `src/test/java/com/influencerapp/infrastructure/adapter/http/ChannelControllerContractTest.java` | 4 contract tests |
+
+**Modified files:**
+
+| File | Change |
+|------|--------|
+| `GeminiTextGenerationAdapter.java` | Real Gemini API call with circuit breaker + retry + fallback |
+| `MinioStorageAdapter.java` | Real MinIO streaming upload/retrieve with tenant-prefixed paths |
+| `InfrastructureConfig.java` | Added `RestTemplate`, `CircuitBreaker`, `Retry`, `TimeLimiter`, `MinioClient` beans |
+| `PaginatedResponse.java` | Added `@AllArgsConstructor` |
+| `UserRegistrationRequest.java` | Added `@AllArgsConstructor` |
+| `PageResult.java` | Added explicit getters |
+| `pom.xml` | Added `resilience4j-retry` and `spring-cloud-contract-wiremock` dependencies |
+
 ## Clean Code & Lombok
 
 This project follows Clean Code principles and uses Lombok to eliminate boilerplate.
 
-- **Lombok annotations**: `@Value`, `@Data`, `@Builder`, `@Slf4j`, `@RequiredArgsConstructor`, `@With`, `@NoArgsConstructor(force = true)` for JPA entities.
+- **Lombok annotations**: `@Value`, `@Data`, `@Builder`, `@Slf4j`, `@RequiredArgsConstructor`, `@With`, `@AllArgsConstructor`, `@NoArgsConstructor(force = true)` for JPA entities.
 - **No manual getters/setters/constructors** unless Lombok cannot express the invariant.
 - **Single responsibility**: one class, one reason to change.
 - **Small functions**: methods <= 30 lines, classes <= 300 lines.
@@ -172,15 +347,17 @@ This project follows Clean Code principles and uses Lombok to eliminate boilerpl
 ## Contributing
 
 1. Read `docs/specs/constitution.md` — these are non-negotiable rules.
-2. Read `arq/architecture.md` before implementing any new adapter or use case.
-3. Follow the multi-module Maven structure (`domain`, `application`, `infrastructure`).
-4. Enforce layer boundaries: `domain` must never import Spring, JPA, Kafka, or SDKs.
-5. Write unit tests for all use cases (90%+ coverage target).
-6. Write integration tests for all adapters using Testcontainers.
-7. Ensure all Kafka events use kebab-case topic names and include `tenantId`.
-8. Never load full video files into memory; always stream.
-9. Never hardcode secrets; use environment variables.
-10. Submit PRs with clear descriptions linked to user stories or constitution amendments.
+2. Read `docs/specs/development-plan.md` and `docs/specs/execution-state.md` to understand the current phase and pending tasks.
+3. Read `docs/specs/arq/architecture.md` before implementing any new adapter or use case.
+4. Follow the Maven structure (`domain`, `application`, `infrastructure` packages; multi-module split planned for Phase 3).
+5. Enforce layer boundaries: `domain` must never import Spring, JPA, Kafka, or SDKs.
+6. Write unit tests for all use cases (90%+ coverage target).
+7. Write integration tests for all adapters using Testcontainers.
+8. Ensure all Kafka events use kebab-case topic names and include `tenantId`.
+9. Never load full video files into memory; always stream.
+10. Never hardcode secrets; use environment variables.
+11. Update `docs/specs/execution-state.md` before and after making changes.
+12. Submit PRs with clear descriptions linked to user stories or constitution amendments.
 
 ## License
 

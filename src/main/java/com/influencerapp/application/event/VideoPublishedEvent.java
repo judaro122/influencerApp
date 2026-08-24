@@ -8,6 +8,14 @@ import com.influencerapp.domain.model.YouTubeUrl;
 import lombok.Value;
 
 @Value
+/**
+ * Event payload emitted after a video is successfully published to YouTube.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class VideoPublishedEvent {
 
     TenantId tenantId;

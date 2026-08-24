@@ -6,6 +6,14 @@ import java.time.Instant;
 
 @Value
 @AllArgsConstructor
+/**
+ * Aggregate root representing a video in the publishing pipeline.
+ *
+ * @author judaro122
+ * @since 1.0.0
+ */
+
+
 public class Video {
 
     VideoId videoId;

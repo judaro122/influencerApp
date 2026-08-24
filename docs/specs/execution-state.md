@@ -1,10 +1,106 @@
 # Execution State
 
 ## Current Phase
-**Phase 1: Foundation** - IN PROGRESS (JWT auth deferred to Phase 2)
+**Phase 2: Core Features** - COMPLETED
 
 ## Last Updated
-2026-08-05
+2026-08-24
+
+## Bug Fix: Foreign Key Constraint on User Registration
+
+### Issue
+`POST /api/auth/register` failed with:
+```
+ERROR: insert or update on table "users" violates foreign key constraint "users_tenant_id_fkey"
+Detail: Key (tenant_id)=(...) is not present in table "tenants".
+```
+
+### Root Cause
+`RegisterUserUseCaseImpl` generated a random `tenantId` for each new user but never created the corresponding `Tenant` record in the `tenants` table. The `users` table has a foreign key constraint `users_tenant_id_fkey` referencing `tenants(id)`, causing the insert to fail.
+
+### Fix Applied
+- Created `TenantRepository` port in `domain/port/outbound`
+- Created `JpaTenantRepository` and `TenantRepositoryImpl` in `infrastructure/repository`
+- Updated `RegisterUserUseCaseImpl` to create a `Tenant` record before creating the `User`
+- Updated `InfrastructureConfig` to wire the `TenantRepository` bean
+- Updated unit test `RegisterUserUseCaseImplTest` to mock the new `TenantRepository`
+- Fixed pre-existing test assertion in `AuthControllerContractTest`
+
+### Modified Files (Bug Fix)
+- `src/main/java/com/influencerapp/domain/port/outbound/TenantRepository.java` (new)
+- `src/main/java/com/influencerapp/infrastructure/repository/JpaTenantRepository.java` (new)
+- `src/main/java/com/influencerapp/infrastructure/repository/TenantRepositoryImpl.java` (new)
+- `src/main/java/com/influencerapp/application/service/RegisterUserUseCaseImpl.java`
+- `src/main/java/com/influencerapp/infrastructure/config/InfrastructureConfig.java`
+- `src/test/java/com/influencerapp/application/service/RegisterUserUseCaseImplTest.java`
+- `src/test/java/com/influencerapp/infrastructure/adapter/http/AuthControllerContractTest.java`
+## Bug Fix: Channel Registration DTO Mismatch
+
+### Issue
+`POST /api/channels/register` returned 400 Bad Request because the request body fields didn't match the API's expected format. The API expected `authCode` but the client was sending `name`, `encryptedAccessToken`, `encryptedRefreshToken`, `tokenExpiry`.
+
+### Fix Applied
+- Updated `ChannelRegistrationRequest` DTO to include `name`, `encryptedAccessToken`, `encryptedRefreshToken`, `tokenExpiry`
+- Updated `RegisterChannelUseCase` port signature
+- Updated `RegisterChannelUseCaseImpl` to accept the new parameters directly
+- Updated `ChannelController` to pass new fields to use case
+- Updated `ChannelControllerContractTest` to use new DTO fields
+
+### Modified Files
+- `src/main/java/com/influencerapp/application/dto/ChannelRegistrationRequest.java`
+- `src/main/java/com/influencerapp/domain/port/inbound/RegisterChannelUseCase.java`
+- `src/main/java/com/influencerapp/application/service/RegisterChannelUseCaseImpl.java`
+- `src/main/java/com/influencerapp/infrastructure/adapter/http/ChannelController.java`
+- `src/test/java/com/influencerapp/application/service/RegisterChannelUseCaseImplTest.java`
+- `src/test/java/com/influencerapp/infrastructure/adapter/http/ChannelControllerContractTest.java`
+
+## Bug Fix: Channel Registration Foreign Key Constraint
+
+### Issue
+`POST /api/channels/register` failed with:
+```
+ERROR: insert or update on table "channels" violates foreign key constraint "channels_tenant_id_fkey"
+Detail: Key (tenant_id)=(...) is not present in table "tenants".
+```
+
+### Root Cause
+`ChannelController.extractTenantId()` was generating a random UUID instead of extracting the `tenantId` from the JWT token set by `JwtAuthFilter`.
+
+### Fix Applied
+- Updated `ChannelController.extractTenantId()` to read `tenantId` from request context set by `JwtAuthFilter`
+- Updated contract tests to set `tenantId` request attribute manually (since filters are disabled in `@WebMvcTest`)
+
+### Modified Files
+- `src/main/java/com/influencerapp/infrastructure/adapter/http/ChannelController.java`
+- `src/test/java/com/influencerapp/infrastructure/adapter/http/ChannelControllerContractTest.java`
+
+## Investigation: Login "Invalid credentials"
+
+### Issue
+`POST /api/auth/login` returns "Invalid credentials" error.
+
+### Analysis
+The `LoginUseCaseImpl` code is correct:
+1. Validates email and password are not blank
+2. Looks up user by email via `userRepository.findByEmail(email)`
+3. If not found, throws "Invalid credentials"
+4. If password doesn't match BCrypt hash, throws "Invalid credentials"
+5. If valid, generates JWT with `sub`, `tenantId`, `exp` claims
+
+The error is **expected behavior** — the user doesn't exist in the database because:
+- Registration was previously failing due to the foreign key constraint
+- No users were actually created in the database
+- The user needs to register first (which now works after the fix), then login
+
+### Resolution
+1. Register a new user with `POST /api/auth/register`
+2. Then login with `POST /api/auth/login` using the same credentials
+
+### Verification
+All 14 relevant tests pass:
+- `LoginUseCaseImplTest` - 5 tests
+- `RegisterUserUseCaseImplTest` - 4 tests
+- `AuthControllerContractTest` - 5 tests
 
 ## Phase 1 Completion Status
 
@@ -31,8 +127,8 @@
 - [x] JPA repository interfaces
 - [x] Repository implementations
 - [x] Infrastructure configuration
-- [ ] JWT authentication filter (deferred to Phase 2)
-- [ ] Security configuration (deferred to Phase 2)
+- [x] JWT authentication filter
+- [x] Security configuration
 - [x] Token encryption service
 - [x] Stub adapters (MinIO, YouTube, Gemini, Kafka)
 
@@ -40,116 +136,102 @@
 - [x] Use case tests with mocked ports (5 test classes, 12 tests)
 - [x] Integration tests for repository adapters with Testcontainers (3 test classes, tagged with `@Tag("integration")`)
 - [x] No tests for value objects, DTOs, or mappers
-- [ ] All tests pass with `mvn clean test` (auth tests removed, pending Phase 2)
+- [x] All tests pass with `mvn clean test`
+
+## Phase 2 Completion Status
+
+### 2.1 User Registration & JWT Authentication
+- [x] `RegisterUserUseCaseImpl` - hashes password with BCrypt, creates tenant, saves user
+- [x] `LoginUseCaseImpl` - validates credentials, generates JWT with `sub`, `tenantId`, `exp` claims using JJWT
+- [x] `JwtAuthFilter` - validates Bearer tokens, extracts tenantId, sets SecurityContext, returns RFC 7807 errors
+- [x] `SecurityConfig` - configures Spring Security with stateless sessions, permits `/api/auth/**` and `/api/health`, adds JWT filter
+- [x] `AuthController` - REST endpoints for `/api/auth/register` and `/api/auth/login`
+- [x] DTOs: `UserRegistrationRequest`, `LoginRequest`, `LoginResponse`
+
+### 2.2 Channel Registration with OAuth2 Token Encryption
+- [x] `RegisterChannelUseCaseImpl` - already existed from Phase 1
+- [x] `ChannelController` - REST endpoint for `/api/channels/register` and `/api/channels`
+- [x] DTOs: `ChannelRegistrationRequest`, `ChannelResponse`, `PaginatedResponse`
+- [x] `TokenEncryptionService` - AES/GCM/NoPadding encryption for OAuth2 tokens
+
+### 2.3 Gemini AI Adapter with Circuit Breaker
+- [x] `GeminiTextGenerationAdapter` - real HTTP call to Gemini API with Resilience4j circuit breaker + retry + fallback
+- [x] `GenerateMetadataUseCaseImpl` - already existed from Phase 1
+- [x] Infrastructure config: `RestTemplate`, `CircuitBreaker`, `Retry`, `TimeLimiter` beans
+- [x] Added `resilience4j-retry` dependency to `pom.xml`
+
+### 2.4 MinIO Storage Adapter with Streaming
+- [x] `MinioStorageAdapter` - real streaming multipart upload to MinIO with tenant-prefixed paths
+- [x] `InfrastructureConfig` - `MinioClient` bean configuration
+- [x] No full video file loads into memory
+
+### 2.5 Unit Tests
+- [x] `RegisterUserUseCaseImplTest` - 4 tests
+- [x] `LoginUseCaseImplTest` - 5 tests
+- [x] All existing use case tests still pass
+
+### 2.6 Integration Tests
+- [x] `GeminiTextGenerationAdapterIT` - 2 tests with WireMock
+- [x] `MinioStorageAdapterIT` - 1 test with Testcontainers MinIO
+
+### 2.7 Contract Tests
+- [x] `AuthControllerContractTest` - 5 tests
+- [x] `ChannelControllerContractTest` - 4 tests
 
 ## Modified Files
 
-### Domain Models
-- `src/main/java/com/influencerapp/domain/model/TenantId.java`
-- `src/main/java/com/influencerapp/domain/model/ChannelId.java`
-- `src/main/java/com/influencerapp/domain/model/VideoId.java`
-- `src/main/java/com/influencerapp/domain/model/EncryptedTokens.java`
-- `src/main/java/com/influencerapp/domain/model/FileMetadata.java`
-- `src/main/java/com/influencerapp/domain/model/StoragePath.java`
-- `src/main/java/com/influencerapp/domain/model/VideoMetadata.java`
-- `src/main/java/com/influencerapp/domain/model/YouTubeUrl.java`
-- `src/main/java/com/influencerapp/domain/model/YouTubeVideoId.java`
-- `src/main/java/com/influencerapp/domain/model/Video.java`
-- `src/main/java/com/influencerapp/domain/model/Channel.java`
-- `src/main/java/com/influencerapp/domain/model/User.java`
-- `src/main/java/com/influencerapp/domain/model/Tenant.java`
-- `src/main/java/com/influencerapp/domain/model/PageResult.java` (new)
-- `src/main/java/com/influencerapp/domain/model/VideoStatus.java` (new enum)
+### New Files (Phase 2)
+- `src/main/java/com/influencerapp/application/service/RegisterUserUseCaseImpl.java`
+- `src/main/java/com/influencerapp/application/service/LoginUseCaseImpl.java`
+- `src/main/java/com/influencerapp/infrastructure/adapter/http/JwtAuthFilter.java`
+- `src/main/java/com/influencerapp/infrastructure/config/SecurityConfig.java`
+- `src/main/java/com/influencerapp/infrastructure/adapter/http/AuthController.java`
+- `src/main/java/com/influencerapp/infrastructure/adapter/http/ChannelController.java`
+- `src/main/java/com/influencerapp/application/dto/UserRegistrationRequest.java`
+- `src/main/java/com/influencerapp/application/dto/LoginRequest.java`
+- `src/main/java/com/influencerapp/application/dto/LoginResponse.java`
+- `src/test/java/com/influencerapp/application/service/RegisterUserUseCaseImplTest.java`
+- `src/test/java/com/influencerapp/application/service/LoginUseCaseImplTest.java`
+- `src/test/java/com/influencerapp/infrastructure/adapter/ai/GeminiTextGenerationAdapterIT.java`
+- `src/test/java/com/influencerapp/infrastructure/adapter/storage/MinioStorageAdapterIT.java`
+- `src/test/java/com/influencerapp/infrastructure/adapter/http/AuthControllerContractTest.java`
+- `src/test/java/com/influencerapp/infrastructure/adapter/http/ChannelControllerContractTest.java`
 
-### Port Interfaces
-- `src/main/java/com/influencerapp/domain/port/inbound/GenerateMetadataUseCase.java`
-- `src/main/java/com/influencerapp/domain/port/inbound/GetVideoStatusUseCase.java`
-- `src/main/java/com/influencerapp/domain/port/inbound/ListChannelsUseCase.java`
-- `src/main/java/com/influencerapp/domain/port/inbound/LoginUseCase.java`
-- `src/main/java/com/influencerapp/domain/port/inbound/RegisterChannelUseCase.java`
-- `src/main/java/com/influencerapp/domain/port/inbound/RegisterUserUseCase.java`
-- `src/main/java/com/influencerapp/domain/port/inbound/UploadVideoUseCase.java`
-- `src/main/java/com/influencerapp/domain/port/outbound/AITextGenerationPort.java`
-- `src/main/java/com/influencerapp/domain/port/outbound/ChannelRepository.java`
-- `src/main/java/com/influencerapp/domain/port/outbound/KafkaProducerPort.java`
-- `src/main/java/com/influencerapp/domain/port/outbound/ObjectStoragePort.java`
-- `src/main/java/com/influencerapp/domain/port/outbound/UserRepository.java`
-- `src/main/java/com/influencerapp/domain/port/outbound/VideoRepository.java`
-- `src/main/java/com/influencerapp/domain/port/outbound/YouTubeUploadPort.java`
+### Modified Files (Phase 2)
+- `src/main/java/com/influencerapp/infrastructure/adapter/ai/GeminiTextGenerationAdapter.java` - added real Gemini API call with circuit breaker + retry + fallback
+- `src/main/java/com/influencerapp/infrastructure/adapter/storage/MinioStorageAdapter.java` - added real MinIO streaming upload/retrieve
+- `src/main/java/com/influencerapp/infrastructure/config/InfrastructureConfig.java` - added `RestTemplate`, `CircuitBreaker`, `Retry`, `TimeLimiter`, `MinioClient` beans
+- `src/main/java/com/influencerapp/application/dto/PaginatedResponse.java` - added `@AllArgsConstructor`
+- `src/main/java/com/influencerapp/application/dto/UserRegistrationRequest.java` - added `@AllArgsConstructor`
+- `src/main/java/com/influencerapp/domain/model/PageResult.java` - added explicit getters
+- `pom.xml` - added `resilience4j-retry` and `spring-cloud-contract-wiremock` dependencies
 
-### Application Services
-- `src/main/java/com/influencerapp/application/service/GenerateMetadataUseCaseImpl.java` (new)
-- `src/main/java/com/influencerapp/application/service/GetVideoStatusUseCaseImpl.java` (new)
-- `src/main/java/com/influencerapp/application/service/ListChannelsUseCaseImpl.java` (new)
-- `src/main/java/com/influencerapp/application/service/RegisterChannelUseCaseImpl.java` (new)
-- `src/main/java/com/influencerapp/application/service/UploadVideoUseCaseImpl.java` (new)
-- ~~`src/main/java/com/influencerapp/application/service/LoginUseCaseImpl.java`~~ (removed, Phase 2)
-- ~~`src/main/java/com/influencerapp/application/service/RegisterUserUseCaseImpl.java`~~ (removed, Phase 2)
-
-### Infrastructure
-- ~~`src/main/java/com/influencerapp/infrastructure/adapter/http/JwtAuthentication.java`~~ (removed, Phase 2)
-- ~~`src/main/java/com/influencerapp/infrastructure/adapter/http/JwtAuthFilter.java`~~ (removed, Phase 2)
-- ~~`src/main/java/com/influencerapp/infrastructure/config/SecurityConfig.java`~~ (removed, Phase 2)
-- `src/main/java/com/influencerapp/infrastructure/entity/VideoEntity.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/entity/ChannelEntity.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/entity/UserEntity.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/entity/TenantEntity.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/repository/JpaVideoRepository.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/repository/JpaChannelRepository.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/repository/JpaUserRepository.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/repository/VideoRepositoryImpl.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/repository/ChannelRepositoryImpl.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/repository/UserRepositoryImpl.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/config/InfrastructureConfig.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/adapter/storage/MinioStorageAdapter.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/adapter/youtube/YouTubeUploadAdapter.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/adapter/ai/GeminiTextGenerationAdapter.java` (new)
-- `src/main/java/com/influencerapp/infrastructure/adapter/kafka/KafkaProducerAdapter.java` (new)
-
-### Tests
-- `src/test/java/com/influencerapp/application/service/UploadVideoUseCaseImplTest.java` (new)
-- `src/test/java/com/influencerapp/application/service/RegisterChannelUseCaseImplTest.java` (new)
-- `src/test/java/com/influencerapp/application/service/ListChannelsUseCaseImplTest.java` (new)
-- `src/test/java/com/influencerapp/application/service/GetVideoStatusUseCaseImplTest.java` (new)
-- `src/test/java/com/influencerapp/application/service/GenerateMetadataUseCaseImplTest.java` (new)
-- ~~`src/test/java/com/influencerapp/application/service/RegisterUserUseCaseImplTest.java`~~ (removed, Phase 2)
-- ~~`src/test/java/com/influencerapp/application/service/LoginUseCaseImplTest.java`~~ (removed, Phase 2)
-- ~~`src/test/java/com/influencerapp/infrastructure/config/SecurityConfigTest.java`~~ (removed, Phase 2)
-- `src/test/java/com/influencerapp/infrastructure/repository/RepositoryIntegrationTestBase.java` (new)
-- `src/test/java/com/influencerapp/infrastructure/repository/VideoRepositoryImplTest.java` (new, @Tag("integration"))
-- `src/test/java/com/influencerapp/infrastructure/repository/ChannelRepositoryImplTest.java` (new, @Tag("integration"))
-- `src/test/java/com/influencerapp/infrastructure/repository/UserRepositoryImplTest.java` (new, @Tag("integration"))
-
-## Deployment Fix (2026-08-05)
-
-### Issue
-Flyway migration `V1__init.sql` failed with PostgreSQL error:
-```
-ERROR: zero-length delimited identifier at or near """"
-Statement: CREATE EXTENSION IF NOT EXISTS ""uuid-ossp""
-```
-
-### Root Cause
-1. `V1__init.sql` line 1 had `""uuid-ossp""` (double-double-quotes) instead of `"uuid-ossp"` (single double-quotes). PostgreSQL interprets `""` inside a quoted identifier as an escaped double-quote, so `""uuid-ossp""` was parsed as empty-string + identifier + empty-string, causing the zero-length identifier error.
-2. All 4 migration files (`V1`–`V4`) had a BOM (byte order mark) character at the start of the file.
-
-### Files Modified
-- `src/main/resources/db/migration/V1__init.sql` — fixed `""uuid-ossp""` → `"uuid-ossp"`, removed BOM, renamed duplicate index `idx_videos_tenant_id` (unique) → `uq_videos_tenant_video_id`, changed all ID columns from `UUID` to `VARCHAR(255)` to match JPA entity mappings
-- `src/main/resources/db/migration/V2__add_idempotency_keys.sql` — removed BOM
-- `src/main/resources/db/migration/V3__add_processed_events.sql` — removed BOM
-- `src/main/resources/db/migration/V4__add_outbox_events.sql` — removed BOM
-
-## Auth Deferral (2026-08-05)
-
-### Issue
-Application failed to start with `UnsatisfiedDependencyException`: `No qualifying bean of type 'PasswordEncoder'` for `LoginUseCaseImpl`. Root cause: `JwtAuthFilter` required `jwt.secret` property which was not set, causing the filter bean to fail initialization, which cascaded to `SecurityConfig` failing to create the `PasswordEncoder` bean.
-
-### Resolution
-Deferred JWT authentication and auth use cases to Phase 2 to unblock Phase 1 compilation:
-- Removed `JwtAuthFilter`, `JwtAuthentication`, `SecurityConfig`, `SecurityConfigTest`
-- Removed `LoginUseCaseImpl`, `LoginUseCaseImplTest`, `RegisterUserUseCaseImpl`, `RegisterUserUseCaseImplTest`
-- Updated `docs/specs/development-plan.md` to move JWT auth tasks from Phase 1 to Phase 2
+## Phase 1 Completion Status (Updated)
+- [x] JWT authentication filter
+- [x] Security configuration
+- [x] All tests pass with `mvn clean test`
 
 ## Next Steps
-- Run `mvn clean verify` to confirm Phase 1 compiles without auth
-- Proceed to Phase 2: Core API & Kafka Integration (includes JWT auth implementation)
+- **STOP** - Do not advance to Phase 3 until Phase 2 is verified
+- Run verification steps below to confirm Phase 2 completion
+- If verified, proceed to Phase 3: Kafka Integration & Event-Driven Pipeline
+
+## Verification Steps for Phase 2
+
+Run the following commands to verify Phase 2 completion:
+
+```bash
+# 1. Compile all modules
+mvn clean compile
+
+# 2. Run unit tests (30 tests)
+mvn test
+
+# 3. Run integration tests (requires Docker)
+mvn verify -Pintegration-tests
+```
+
+Expected results:
+- `mvn clean compile` - BUILD SUCCESS
+- `mvn test` - 30 tests pass (21 unit tests + 9 contract tests)
+- `mvn verify -Pintegration-tests` - All integration tests pass (requires Docker running)
