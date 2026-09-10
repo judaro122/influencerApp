@@ -1,7 +1,7 @@
 ﻿CREATE TABLE outbox_events (
     id BIGSERIAL NOT NULL,
     aggregate_id VARCHAR(255) NOT NULL,
-    tenant_id UUID NOT NULL,
+    tenant_id VARCHAR(255) NOT NULL,
     topic VARCHAR(255) NOT NULL,
     event_type VARCHAR(255) NOT NULL,
     payload TEXT NOT NULL,

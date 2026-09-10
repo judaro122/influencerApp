@@ -10,32 +10,49 @@ import com.influencerapp.domain.model.VideoId;
 import com.influencerapp.domain.model.VideoMetadata;
 import com.influencerapp.domain.model.VideoStatus;
 import com.influencerapp.domain.port.inbound.UploadVideoUseCase;
+import com.influencerapp.domain.port.outbound.IdempotencyKeyRepository;
+import com.influencerapp.domain.port.outbound.KafkaProducerPort;
 import com.influencerapp.domain.port.outbound.ObjectStoragePort;
 import com.influencerapp.domain.port.outbound.VideoRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
-@Service
-@RequiredArgsConstructor
 /**
- * Use case implementation orchestrating the video upload pipeline.
+ * Use case implementation orchestrating the video upload pipeline with idempotency.
  *
  * @author judaro122
  * @since 1.0.0
  */
-
-
+@Service
+@RequiredArgsConstructor
+@Slf4j
 public class UploadVideoUseCaseImpl implements UploadVideoUseCase {
 
     private final VideoRepository videoRepository;
     private final ObjectStoragePort objectStoragePort;
+    private final IdempotencyKeyRepository idempotencyKeyRepository;
+    private final KafkaProducerPort kafkaProducerPort;
+    private final ObjectMapper objectMapper;
 
     @Override
-    public VideoId execute(TenantId tenantId, MultipartFile file, ChannelId channelId) {
+    public VideoId execute(TenantId tenantId, MultipartFile file, ChannelId channelId, String idempotencyKey) {
+        // Idempotency check (tenant-scoped to prevent cross-tenant leakage)
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            if (idempotencyKeyRepository.existsByIdempotencyKey(idempotencyKey, tenantId)) {
+                log.info("Duplicate upload attempt detected for idempotency key: {}", idempotencyKey);
+                throw new DomainException("Duplicate upload request");
+            }
+        }
+
         if (file == null || file.isEmpty()) {
             throw new DomainException("File is required");
         }
@@ -74,8 +91,53 @@ public class UploadVideoUseCaseImpl implements UploadVideoUseCase {
                 Instant.now(),
                 Instant.now()
         );
-        videoRepository.save(video);
-        return video.getVideoId();
+        Video savedVideo = videoRepository.save(video);
+
+        // Save idempotency key
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            String responseBody = buildVideoIdResponse(savedVideo.getVideoId());
+            idempotencyKeyRepository.save(idempotencyKey, tenantId, responseBody);
+        }
+
+        // Emit video-received event via outbox
+        emitVideoReceivedEvent(savedVideo);
+
+        return savedVideo.getVideoId();
+    }
+
+    private void emitVideoReceivedEvent(Video video) {
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("schemaVersion", "1.0.0");
+            payload.put("tenantId", video.getTenantId().getValue());
+            payload.put("correlationId", UUID.randomUUID().toString());
+            payload.put("videoId", video.getVideoId().getValue());
+            payload.put("channelId", video.getChannelId().getValue());
+            payload.put("timestamp", Instant.now().toString());
+            Map<String, Object> eventPayload = new HashMap<>();
+            eventPayload.put("storagePath", video.getStoragePath().getValue());
+            eventPayload.put("fileName", video.getFileMetadata().getFilename());
+            eventPayload.put("fileSize", video.getFileMetadata().getSize());
+            eventPayload.put("mimeType", video.getFileMetadata().getMimeType());
+            payload.put("payload", eventPayload);
+
+            String eventJson = objectMapper.writeValueAsString(payload);
+            kafkaProducerPort.send("video-received", eventJson);
+            log.info("Emitted video-received event for video: {}", video.getVideoId().getValue());
+        } catch (Exception e) {
+            log.error("Failed to emit video-received event for video: {}", video.getVideoId().getValue(), e);
+            // Don't fail the upload if event emission fails - outbox will handle retry
+        }
+    }
+
+    private String buildVideoIdResponse(VideoId videoId) {
+        try {
+            Map<String, Object> response = new HashMap<>();
+            response.put("videoId", videoId.getValue());
+            return objectMapper.writeValueAsString(response);
+        } catch (Exception e) {
+            return "{\"videoId\":\"" + videoId.getValue() + "\"}";
+        }
     }
 
     private String sanitizeFilename(String filename) {

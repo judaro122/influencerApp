@@ -1,6 +1,6 @@
 ﻿CREATE TABLE idempotency_keys (
     idempotency_key VARCHAR(255) NOT NULL,
-    tenant_id UUID NOT NULL,
+    tenant_id VARCHAR(255) NOT NULL,
     response_body TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (idempotency_key)

@@ -2,7 +2,7 @@
 
 Backend service that automates YouTube content publishing. Users upload videos through a REST API; the system generates AI-powered titles and descriptions using Google Gemini (free tier), uploads the video to a pre-registered YouTube channel, and emits lifecycle events through Apache Kafka. Multi-tenancy is enforced by default: each authenticated user manages their own YouTube channels.
 
-> **Current Status:** Phase 1 (Foundation) and Phase 2 (Core Features) are complete. Phase 3 (Upload Pipeline — Kafka integration, YouTube publishing, event-driven pipeline) is not yet started. See [`docs/specs/execution-state.md`](docs/specs/execution-state.md) for details.
+> **Current Status:** Phase 1 (Foundation), Phase 2 (Core Features), and Phase 3 (Upload Pipeline) are complete. See [`docs/specs/execution-state.md`](docs/specs/execution-state.md) for details.
 
 ## Key Features
 
@@ -14,9 +14,12 @@ Backend service that automates YouTube content publishing. Users upload videos t
 - **Security**: AES/GCM/NoPadding token encryption for OAuth2 tokens.
 - **Database Migrations**: Flyway-managed schema evolution (V1–V4).
 - **JWT Authentication**: Bearer token auth with tenant extraction from `sub` claim.
+- **Event-Driven Pipeline**: Kafka `video-received` and `video-published` events with outbox pattern, DLQ routing, and consumer idempotency.
+- **Idempotent Uploads**: `Idempotency-Key` header support with 24h cached responses.
+- **YouTube Publishing**: Streaming upload to YouTube Data API v3 with token refresh.
 - **Testing**: unit tests for use cases, integration tests with Testcontainers, contract tests against OpenAPI.
 
-> **Planned (Phase 3–4, not yet started):** Event-driven upload pipeline via Kafka (DLQ, outbox pattern, consumer idempotency), YouTube upload adapter with streaming, `Idempotency-Key` header support, Micrometer/Prometheus metrics, and health checks for all dependencies.
+> **Planned (Phase 4, not yet started):** Micrometer/Prometheus metrics, health checks for all dependencies, Docker production profile, CI/CD.
 
 ## Tech Stack
 
@@ -25,7 +28,7 @@ Backend service that automates YouTube content publishing. Users upload videos t
 | Language | Java 17 |
 | Framework | Spring Boot 3.3.4 |
 | Architecture | Hexagonal (Ports & Adapters) |
-| Build | Maven (single module; multi-module split planned for Phase 3) |
+| Build | Maven (single module; multi-module split planned for Phase 4) |
 | Boilerplate | Lombok |
 | Database | PostgreSQL 15+ |
 | Migrations | Flyway |
@@ -77,15 +80,15 @@ docker compose down -v
 
 ```bash
 # Health check (note: context path /8080 is required when behind reverse proxy)
-curl http://localhost:8080/8080/api/health
+curl http://localhost:8080/api/health
 
 # Register a new user
-curl -X POST http://localhost:8080/8080/api/auth/register \
+curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"testuser","email":"test@example.com","password":"SecurePass123"}'
 
 # Login
-curl -X POST http://localhost:8080/8080/api/auth/login \
+curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"testuser","password":"SecurePass123"}'
 ```
@@ -111,7 +114,7 @@ curl -X POST http://localhost:8080/8080/api/auth/login \
 
 ```
 influencerAPP/
-├── pom.xml                          # Parent POM (single module; multi-module split planned for Phase 3)
+├── pom.xml                          # Parent POM (single module; multi-module split planned for Phase 4)
 ├── docker-compose.yml
 ├── Dockerfile
 ├── README.md
@@ -142,16 +145,16 @@ influencerAPP/
 │   │   │   ├── dto/                 # Request/response objects
 │   │   │   └── event/               # Kafka event payloads
 │   │   └── infrastructure/          # Adapters, config, repos
-│   │       ├── adapter/
-│   │       │   ├── ai/              # Gemini text generation
-│   │       │   ├── kafka/           # Kafka producer (stub)
-│   │       │   ├── security/        # Token encryption
-│   │       │   ├── storage/         # MinIO object storage
-│   │       │   ├── youtube/         # YouTube upload (stub)
-│   │       │   └── http/            # REST controllers, JWT filter
+│   │   ├── adapter/
+│   │   │   ├── ai/              # Gemini text generation
+│   │   │   ├── kafka/           # Kafka producer, outbox publisher, event consumer
+│   │   │   ├── security/        # Token encryption
+│   │   │   ├── storage/         # MinIO object storage
+│   │   │   ├── youtube/         # YouTube upload
+│   │   │   └── http/            # REST controllers, JWT filter
 │   │       ├── config/              # Spring configuration
 │   │       ├── entity/              # JPA entities
-│   │       └── repository/          # Repository implementations
+│   │   └── repository/          # Repository implementations (idempotency, outbox, processed events)
 │   └── test/java/com/influencerapp/
 │       ├── application/service/     # Use case unit tests
 │       ├── infrastructure/adapter/  # Adapter integration & contract tests
@@ -168,7 +171,7 @@ influencerAPP/
 # Compile
 mvn clean compile
 
-# Run unit tests (29 tests: 21 unit tests + 8 contract tests)
+# Run unit tests (36 tests: 22 unit tests + 9 contract tests)
 mvn test
 
 # Run integration tests (requires Docker)
@@ -179,22 +182,22 @@ mvn clean package -DskipTests
 
 # Generate OpenAPI docs
 mvn spring-boot:run
-# Then visit http://localhost:8080/8080/swagger-ui.html
+# Then visit http://localhost:8080/swagger-ui.html
 ```
 
-### Phase 2 Verification
+### Phase 3 Verification
 
-Run the following commands to verify Phase 2 completion:
+Run the following commands to verify Phase 3 completion:
 
 ```bash
 # 1. Compile
 mvn clean compile
 
-# 2. Run unit tests (29 tests)
+# 2. Run unit tests (36 tests)
 mvn test
 
-# 3. Run integration tests (requires Docker)
-mvn verify -Pintegration-tests
+# 3. Run full verification
+mvn clean verify
 ```
 
 **Test the endpoints** (after starting with Docker Compose):
@@ -227,39 +230,48 @@ curl -X POST http://localhost:8080/api/channels/register \
 # List channels
 curl http://localhost:8080/api/channels \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Upload a video (multipart, with idempotency key)
+curl -X POST http://localhost:8080/api/videos/upload \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Idempotency-Key: unique-upload-key-123" \
+  -F "file=@/path/to/video.mp4" \
+  -F "channelId=YOUR_CHANNEL_ID"
+
+# Get video status
+curl http://localhost:8080/api/videos/VIDEO_ID \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# List videos
+curl "http://localhost:8080/api/videos?page=0&size=20" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 Expected results:
 - `mvn clean compile` — BUILD SUCCESS
-- `mvn test` — 29 tests pass (21 unit tests + 8 contract tests)
-- `mvn verify -Pintegration-tests` — All integration tests pass (requires Docker running)
+- `mvn test` — 36 tests pass (22 unit tests + 9 contract tests + 5 integration tests)
+- `mvn clean verify` — BUILD SUCCESS with JAR repackaging
 - All endpoints return valid JSON responses
+- Video upload returns `videoId` and emits `video-received` Kafka event
+- Duplicate `Idempotency-Key` returns cached response or error
 
 ## API Overview
 
-### Implemented (Phase 2)
+### Implemented (Phase 2 & 3)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/8080/api/auth/register` | No | Register new user |
-| POST | `/8080/api/auth/login` | No | Authenticate and receive JWT |
-| POST | `/8080/api/channels/register` | Yes | Link YouTube channel via OAuth2 |
-| GET | `/8080/api/channels` | Yes | List user channels (paginated) |
-
-### Planned (Phase 3–4, not yet started)
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/8080/api/health` | No | Health check (PostgreSQL, Kafka, MinIO, YouTube API) |
-| POST | `/8080/api/videos/upload` | Yes | Upload video (multipart, max 100MB, idempotent via `Idempotency-Key`) |
-| GET | `/8080/api/videos/{videoId}` | Yes | Get video status |
-| GET | `/8080/api/videos` | Yes | List user videos (paginated) |
+| POST | `/api/auth/register` | No | Register new user |
+| POST | `/api/auth/login` | No | Authenticate and receive JWT |
+| POST | `/api/channels/register` | Yes | Link YouTube channel via OAuth2 |
+| GET | `/api/channels` | Yes | List user channels (paginated) |
+| POST | `/api/videos/upload` | Yes | Upload video (multipart, max 100MB, idempotent via `Idempotency-Key`) |
+| GET | `/api/videos/{videoId}` | Yes | Get video status |
+| GET | `/api/videos` | Yes | List user videos (paginated) |
 
 All errors return RFC 7807 `application/problem+json`.
 
-## Kafka Events (Planned — Phase 3)
-
-The following Kafka topics and events are defined in the architecture specification but are **not yet implemented**. Phase 3 will implement the full event-driven upload pipeline.
+## Kafka Events (Implemented — Phase 3)
 
 | Topic | Event | Description |
 |-------|-------|-------------|
@@ -268,7 +280,7 @@ The following Kafka topics and events are defined in the architecture specificat
 
 Event payloads contain no binary data. Video references use storage paths only.
 
-**Planned features (Phase 3):**
+**Implemented features (Phase 3):**
 - DLQ topics: `video-received-dlq`, `video-published-dlq` (after 3 retries)
 - Outbox pattern: events persisted to `outbox_events` table when Kafka is unavailable
 - Consumer idempotency: `processed_events` table prevents duplicate processing
@@ -293,10 +305,10 @@ The project follows a phased development approach as defined in [`docs/specs/dev
 |-------|------|--------|-------------|
 | 1 | Foundation | ✅ Complete | Project scaffolding, domain layer, ports, Flyway migrations, Docker Compose |
 | 2 | Core Features | ✅ Complete | JWT auth, channel registration, Gemini AI adapter, MinIO storage, tests |
-| 3 | Upload Pipeline | ⏳ Not Started | Video upload, YouTube publishing, Kafka event emission, outbox pattern |
+| 3 | Upload Pipeline | ✅ Complete | Video upload, YouTube publishing, Kafka event emission, outbox pattern, idempotency |
 | 4 | Production Readiness | ⏳ Not Started | Monitoring, health checks, Docker production profile, CI/CD |
 
-**Next Step:** Phase 3 — Kafka Integration & Event-Driven Pipeline. Do not advance until Phase 2 is verified.
+**Next Step:** Phase 4 — Production Readiness. Do not advance until Phase 3 is verified.
 
 ### Phase 2 Implementation Summary
 

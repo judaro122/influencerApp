@@ -1,5 +1,6 @@
 package com.influencerapp.infrastructure.adapter.http;
 
+import com.influencerapp.domain.exception.DomainException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -26,6 +27,17 @@ public class GlobalExceptionHandler {
      * Returns RFC 7807 Problem Detail with field-level error details.
      * Keeps the first error for each field to ensure deterministic behavior.
      */
+    @ExceptionHandler(DomainException.class)
+    public ProblemDetail handleDomainException(DomainException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage()
+        );
+        problemDetail.setType(URI.create(PROBLEM_TYPE_BASE + "domain-error"));
+        problemDetail.setTitle("Domain Error");
+        return problemDetail;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidationException(MethodArgumentNotValidException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(

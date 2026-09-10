@@ -21,16 +21,16 @@ import java.util.concurrent.TimeUnit;
  */
 public class MinioStorageAdapter implements ObjectStoragePort {
 
-    @Value("${minio.endpoint}")
+    @Value("${spring.minio.endpoint}")
     private String endpoint;
 
-    @Value("${minio.access-key}")
+    @Value("${spring.minio.access-key}")
     private String accessKey;
 
-    @Value("${minio.secret-key}")
+    @Value("${spring.minio.secret-key}")
     private String secretKey;
 
-    @Value("${minio.bucket}")
+    @Value("${spring.minio.bucket}")
     private String bucket;
 
     private final MinioClient minioClient;
