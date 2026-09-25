@@ -9,6 +9,7 @@ import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.timelimiter.TimeLimiter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -23,6 +24,7 @@ import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 /**
  * Adapter implementing AI text generation using Google Gemini with circuit breaker and fallback.
  *
@@ -48,12 +50,13 @@ public class GeminiTextGenerationAdapter implements AITextGenerationPort {
                     retry.executeSupplier(() -> callGemini(filename))
             );
         } catch (Exception e) {
+            log.warn("Gemini metadata generation failed for filename={}, using fallback. Error: {}", filename, e.getMessage());
             return fallback(filename);
         }
     }
 
     private VideoMetadata callGemini(String filename) {
-        String prompt = "Generate a short title and description for a video file named " + filename + ". Return only a JSON object with title and description fields.";
+        String prompt = "Generate a catchy, engaging YouTube title and description for a video file named '" + filename + "'. The title should be concise and attention-grabbing. The description should be 1-2 sentences summarizing the video content. Return ONLY a valid JSON object with exactly two fields: \"title\" and \"description\". Do not include any other text or markdown formatting.";
         String url = GEMINI_URL + apiKey;
 
         Map<String, Object> requestBody = Map.of(

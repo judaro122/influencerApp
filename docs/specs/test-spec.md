@@ -383,6 +383,22 @@ The build MUST fail if domain or application layer coverage drops below 90%:
 
 ---
 
-*Version: 1.0.0*
-*Status: Draft*
-*Last Updated: 2026-07-28*
+## 8. Automated API Testing for Deployed Services
+
+For end-to-end black-box and integration testing against deployed environments (e.g. `http://192.168.100.10:8080`), a standalone Java test automation suite based on REST Assured, JUnit 5, and Allure is specified.
+
+Detailed specification: [Automated API Test Plan](automated-test-plan.md)
+
+### Key Test Categories:
+- **Smoke Tests**: System health (`GET /api/health`), component availability.
+- **Authentication & Security**: Registration, JWT login, token expiration, multi-tenant isolation.
+- **Channel Operations**: OAuth token storage, encrypted credentials, channel pagination.
+- **Video Upload & Idempotency**: Multipart uploads, duplicate `Idempotency-Key` caching, invalid MIME rejection.
+- **E2E Publishing Lifecycle**: Async polling (`RECEIVED` -> `PROCESSING` -> `PUBLISHED`), Gemini metadata fallback.
+- **Contract & RFC 7807 Compliance**: OpenAPI schema compliance and standardized error payloads.
+
+---
+
+*Version: 1.1.0*  
+*Status: Active*  
+*Last Updated: 2026-09-25*

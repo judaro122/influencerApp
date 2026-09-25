@@ -34,7 +34,7 @@ public class OutboxPublisher {
         List<OutboxEvent> pendingEvents = outboxEventRepository.findPendingEvents(10);
         for (OutboxEvent event : pendingEvents) {
             try {
-                kafkaTemplate.send(event.getTopic(), event.getPayload());
+                kafkaTemplate.send(event.getTopic(), event.getId().toString(), event.getPayload());
                 outboxEventRepository.markAsPublished(event.getId());
                 log.debug("Published outbox event id={} to topic={}", event.getId(), event.getTopic());
             } catch (Exception e) {
@@ -45,7 +45,7 @@ public class OutboxPublisher {
                 if (retryCount >= MAX_RETRIES) {
                     log.error("Outbox event id={} exceeded max retries ({}), marking as failed", event.getId(), MAX_RETRIES);
                     String dlqTopic = event.getTopic() + DLQ_TOPIC_SUFFIX;
-                    kafkaTemplate.send(dlqTopic, event.getPayload());
+                    kafkaTemplate.send(dlqTopic, event.getId().toString(), event.getPayload());
                     outboxEventRepository.markAsFailed(event.getId(), "Max retries exceeded: " + e.getMessage());
                 } else {
                     log.warn("Outbox event id={} will be retried (attempt {}/{})", event.getId(), retryCount, MAX_RETRIES);

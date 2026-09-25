@@ -343,7 +343,101 @@ The `UUID` type in V2-V4 was inconsistent with the rest of the codebase, causing
 - `src/main/resources/db/migration/V4__add_outbox_events.sql` (modified)
 - `src/main/resources/db/migration/V5__fix_tenant_id_column_types.sql` (new)
 
-### Post-Fix Action Required
+### Bug Fix: OutboxEventEntity IdentifierGenerationException
+
+### Issue
+Publishing a video event fails with:
+```
+org.hibernate.id.IdentifierGenerationException: Identifier of entity 'com.influencerapp.infrastructure.entity.OutboxEventEntity' must be manually assigned before calling 'persist()'
+```
+
+### Root Cause
+`OutboxEventEntity` declares `@Id private Long id;` without any `@GeneratedValue` annotation. The database column is `BIGSERIAL` (auto-incrementing), but Hibernate requires an explicit generation strategy to auto-populate the ID on `persist()`. `OutboxEventRepositoryImpl.save()` creates a new entity without setting the `id`, causing the exception.
+
+### Fix Applied
+- Added `@GeneratedValue(strategy = GenerationType.IDENTITY)` to `OutboxEventEntity.id` to match the `BIGSERIAL` database column
+
+### Modified Files (Bug Fix)
+- `src/main/java/com/influencerapp/infrastructure/entity/OutboxEventEntity.java`
+
+### Verification
+All 36 tests pass with `mvn test`:
+- 22 unit tests
+- 9 contract tests
+- 5 integration tests
+
+## Bug Fix: OutboxPublisher Not Running (Missing @EnableScheduling)
+
+### Issue
+Video status remains `RECEIVED` and metadata (`title`, `description`) is never populated. The outbox event is saved to the database, but the processing pipeline never triggers.
+
+### Root Cause
+`OutboxPublisher` uses `@Scheduled(fixedDelay = 5000)` to poll the `outbox_events` table and publish events to Kafka. However, `InfluencerAppApplication` only had `@SpringBootApplication` — without `@EnableScheduling`, Spring never registers the scheduled task, so:
+- Outbox events remain `PENDING` in the database
+- Kafka never receives the `video-received` event
+- `VideoEventConsumer` never processes the video
+- `VideoProcessingService` never generates metadata
+- The video stays in `RECEIVED` status with `null` metadata
+
+### Fix Applied
+- Added `@EnableScheduling` to `InfluencerAppApplication` to enable the `OutboxPublisher` scheduled task
+
+### Modified Files (Bug Fix)
+- `src/main/java/com/influencerapp/InfluencerAppApplication.java`
+
+### Verification
+All 36 tests pass with `mvn test`:
+- 22 unit tests
+- 9 contract tests
+- 5 integration tests
+
+## Bug Fix: OutboxPublisher Missing Kafka Message Key
+
+### Issue
+After enabling scheduling, the Kafka consumer fails with:
+```
+Missing header 'kafka_receivedMessageKey' for method parameter type [class java.lang.String]
+```
+
+### Root Cause
+`OutboxPublisher` was calling `kafkaTemplate.send(topic, payload)` without a message key. The `VideoEventConsumer` requires `@Header(KafkaHeaders.RECEIVED_KEY) String key` for idempotency, but the header was missing because no key was set.
+
+### Fix Applied
+- Updated `OutboxPublisher` to send the outbox event `id` as the Kafka message key: `kafkaTemplate.send(topic, event.getId().toString(), payload)`
+- This ensures the `kafka_receivedMessageKey` header is present and the consumer can use it as the `eventId` for idempotency checks
+
+### Modified Files (Bug Fix)
+- `src/main/java/com/influencerapp/infrastructure/adapter/kafka/OutboxPublisher.java`
+
+### Verification
+All 36 tests pass with `mvn test`:
+- 22 unit tests
+- 9 contract tests
+- 5 integration tests
+
+## Improvement: Gemini Prompt & Fallback Logging
+
+### Issue
+Generated video metadata (title/description) was very basic: `"Title for {filename}"` and `"Description for {filename}"`. This happened because the Gemini API call was failing silently and falling back to the basic placeholder text.
+
+### Root Cause
+1. The Gemini prompt was too generic: `"Generate a short title and description for a video file named {filename}. Return only a JSON object with title and description fields."`
+2. When Gemini failed, there was no logging to indicate why, making it hard to diagnose whether the issue was a missing API key, network error, or parsing failure.
+
+### Fix Applied
+- Improved the Gemini prompt to request catchy, engaging YouTube-style titles and descriptions with explicit JSON formatting instructions
+- Added `@Slf4j` and a warning log in the fallback path to surface the actual error when Gemini fails
+
+### Modified Files (Improvement)
+- `src/main/java/com/influencerapp/infrastructure/adapter/ai/GeminiTextGenerationAdapter.java`
+
+### Verification
+All 36 tests pass with `mvn test`:
+- 22 unit tests
+- 9 contract tests
+- 5 integration tests
+
+## Post-Fix Action Required
 Since V2-V4 were modified (checksum change), existing databases need to be recreated:
 ```bash
 docker compose down -v  # removes postgres-data volume

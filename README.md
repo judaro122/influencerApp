@@ -286,6 +286,30 @@ Event payloads contain no binary data. Video references use storage paths only.
 - Consumer idempotency: `processed_events` table prevents duplicate processing
 - Idempotent consumers: duplicate events do not cause duplicate YouTube uploads
 
+## Video Status Lifecycle
+
+Videos transition through the following states during the publishing pipeline:
+
+| Status | Description | Metadata (title/description) |
+|--------|-------------|------------------------------|
+| `RECEIVED` | Video uploaded successfully, outbox event created | `null` — not yet generated |
+| `PROCESSING` | `video-received` event consumed, AI metadata generation in progress | `null` until Gemini responds |
+| `UPLOADING` | Metadata generated, video being uploaded to YouTube | **Populated** by Gemini (or fallback) |
+| `PUBLISHED` | YouTube upload completed successfully | Populated |
+| `FAILED` | Error occurred during processing or upload | May be partially populated |
+
+### Flow
+
+1. **Upload** — `POST /api/videos/upload` creates the video with status `RECEIVED` and emits a `video-received` event to the outbox.
+2. **Outbox Publishing** — `OutboxPublisher` polls the `outbox_events` table every 5 seconds and publishes pending events to Kafka.
+3. **Consume** — `VideoEventConsumer` listens on `video-received` and calls `VideoProcessingService.processVideo()`.
+4. **Generate Metadata** — `GenerateMetadataUseCaseImpl` invokes the Gemini adapter to generate title/description. If Gemini fails, a fallback title/description is used.
+5. **Upload to YouTube** — `PublishToYouTubeUseCaseImpl` streams the video to YouTube and emits a `video-published` event.
+
+### Checking Status
+
+Poll `GET /api/videos/{videoId}` to track progress. The `status` field will transition from `RECEIVED` → `PROCESSING` → `UPLOADING` → `PUBLISHED`. The `metadata.title` and `metadata.description` fields are populated once the video reaches `PROCESSING`/`UPLOADING`.
+
 ## Database Migrations
 
 Flyway manages schema evolution. Current migrations:
