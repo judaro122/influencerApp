@@ -1,0 +1,18 @@
+package com.influencerapp.test.model;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class LoginResponse {
+    private String accessToken;
+    private String tenantId;
+    private Long expiresIn;
+}
